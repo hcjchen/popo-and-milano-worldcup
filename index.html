@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Popo World Cup Daily Quiz Shootout ⚽</title>
+<style>
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; gap:10px; padding:16px;
+    background:linear-gradient(160deg,#bfe9ff 0%,#e8f7ff 100%);
+    font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif; color:#5a3d1a;
+  }
+  h1 { margin:0; font-size:clamp(17px,3.4vw,26px); letter-spacing:.5px; text-align:center; }
+  h1 span { color:#e6932b; }
+  #hud { display:flex; gap:10px; font-weight:bold; font-size:15px; flex-wrap:wrap; justify-content:center; }
+  #hud .pill { background:#fff8e6; border:2px solid #f0c14b; border-radius:999px; padding:4px 12px; }
+  #stage { position:relative; width:720px; max-width:96vw; }
+  canvas { width:100%; display:block; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.18); cursor:crosshair; touch-action:none; background:#3fa34d; }
+  #hint { font-size:14px; opacity:.85; min-height:20px; text-align:center; }
+
+  .overlay { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    gap:12px; padding:18px; border-radius:16px; text-align:center; background:rgba(20,30,40,.62); backdrop-filter:blur(3px); color:#fff; }
+  .overlay.show { display:flex; }
+  .card { background:#fff8e6; color:#5a3d1a; border:3px solid #f0c14b; border-radius:18px;
+    padding:18px; width:min(580px,94%); box-shadow:0 8px 24px rgba(0,0,0,.25); }
+  .cat { font-size:12px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; color:#e6932b; }
+  .qtext { font-size:clamp(16px,2.3vw,21px); font-weight:bold; margin:8px 0 12px; }
+  .opts { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  @media (max-width:520px){ .opts { grid-template-columns:1fr; } }
+  .opt { font:inherit; font-weight:bold; cursor:pointer; padding:11px 10px; border-radius:12px;
+    border:2px solid #e6b23a; background:#fff; color:#5a3d1a; transition:transform .05s, background .15s; }
+  .opt:hover { background:#fff3cf; } .opt:active { transform:translateY(1px); }
+  .opt.correct { background:#46c95f; border-color:#2f9d44; color:#fff; }
+  .opt.wrong   { background:#eb5757; border-color:#c0392b; color:#fff; }
+  .opt:disabled { cursor:default; }
+  #qtimer { height:8px; background:#eadfae; border-radius:6px; margin:12px 0 4px; overflow:hidden; }
+  #qtimerfill { height:100%; width:100%; background:linear-gradient(90deg,#46c95f,#f2c94c,#eb5757); transition:width .12s linear; }
+  .toast { font-size:13.5px; min-height:18px; margin-top:8px; line-height:1.35; }
+  .big { font:inherit; font-weight:bold; font-size:17px; padding:11px 24px; border:none; cursor:pointer;
+    background:#e6932b; color:#fff; border-radius:999px; box-shadow:0 4px 0 #b9731c; margin:4px; }
+  .big.alt { background:#3a7bd5; box-shadow:0 4px 0 #2a5ca0; }
+  .big.green { background:#2f9d44; box-shadow:0 4px 0 #237a34; }
+  .big:active { transform:translateY(2px); box-shadow:0 2px 0 #b9731c; }
+  .nameField { font:inherit; font-size:18px; font-weight:bold; text-align:center; padding:10px 14px;
+    border:2px solid #e6b23a; border-radius:12px; width:min(280px,80%); color:#5a3d1a; }
+  .result-line { font-size:17px; margin:5px 0; }
+  .marks { font-size:26px; letter-spacing:3px; margin:6px 0; }
+  .score-big { font-size:40px; font-weight:bold; color:#e6932b; }
+</style>
+</head>
+<body>
+  <h1>🐱 Popo <span>World Cup Daily Quiz Shootout</span> ⚽</h1>
+  <div id="hud">
+    <div class="pill">Day <span id="day">–</span></div>
+    <div class="pill">Q <span id="qnum">0</span>/5</div>
+    <div class="pill">✔ <span id="correct">0</span></div>
+    <div class="pill">⚽ <span id="goals">0</span></div>
+    <div class="pill">⏱ <span id="time">–</span></div>
+    <div class="pill">★ <span id="best">0</span></div>
+  </div>
+
+  <div id="stage">
+    <canvas id="game" width="720" height="480"></canvas>
+
+    <div id="startOv" class="overlay show">
+      <div class="card">
+        <div class="cat" id="startDate"></div>
+        <div class="qtext">What's your name?</div>
+        <input id="nameInput" class="nameField" maxlength="14" autocomplete="off" />
+        <p style="margin:12px 0;font-size:14.5px;line-height:1.5">
+          Answer 5 World Cup questions. Each one you get right lets Popo take a penalty kick! ⚽
+        </p>
+        <button class="big" id="startBtn">Kick Off!</button>
+      </div>
+    </div>
+
+    <div id="quizOv" class="overlay">
+      <div class="card">
+        <div class="cat" id="qcat">Question</div>
+        <div class="qtext" id="qtext">…</div>
+        <div class="opts" id="qopts"></div>
+        <div id="qtimer"><div id="qtimerfill"></div></div>
+        <div class="toast" id="qfeedback">&nbsp;</div>
+      </div>
+    </div>
+
+    <div id="resultOv" class="overlay">
+      <div class="card">
+        <div class="cat">Full time 🏆 · Day <span id="resDay"></span></div>
+        <div class="marks" id="resMarks"></div>
+        <div class="score-big" id="finalScore">0</div>
+        <div class="result-line" id="resCorrect"></div>
+        <div class="result-line" id="resGoals"></div>
+        <div class="result-line" id="resGrade" style="font-style:italic"></div>
+        <div>
+          <button class="big alt" id="shareBtn">Share</button>
+          <button class="big" id="againBtn">Play Again</button>
+        </div>
+        <div class="toast" id="shareToast">&nbsp;</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="hint">Type your name to begin today's challenge.</div>
+
+<script>
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const $ = id => document.getElementById(id);
+const els = {
+  day:$('day'), qnum:$('qnum'), correct:$('correct'), goals:$('goals'), time:$('time'), best:$('best'),
+  hint:$('hint'), startOv:$('startOv'), startBtn:$('startBtn'), startDate:$('startDate'), nameInput:$('nameInput'),
+  quizOv:$('quizOv'), qcat:$('qcat'), qtext:$('qtext'), qopts:$('qopts'), qfeedback:$('qfeedback'), qtimerfill:$('qtimerfill'),
+  resultOv:$('resultOv'), resDay:$('resDay'), resMarks:$('resMarks'), finalScore:$('finalScore'),
+  resCorrect:$('resCorrect'), resGoals:$('resGoals'), resGrade:$('resGrade'),
+  shareBtn:$('shareBtn'), againBtn:$('againBtn'), shareToast:$('shareToast'),
+};
+
+/* ===================== Question bank (d: E=easy, M=medium, H=hard) ===================== */
+const BANK = [
+  // WC winners
+  {c:'WC Winners',d:'M',q:'Who won the first World Cup in 1930?',o:['Brazil','Uruguay','Argentina','Italy'],a:1,f:'Uruguay won the inaugural 1930 World Cup on home soil.'},
+  {c:'WC Winners',d:'H',q:'Who won the 1934 World Cup?',o:['Italy','Austria','Czechoslovakia','Hungary'],a:0,f:'Italy won 1934 as hosts, then again in 1938.'},
+  {c:'WC Winners',d:'H',q:'Who won the 1938 World Cup?',o:['Hungary','Brazil','Italy','Czechoslovakia'],a:2,f:'Italy went back-to-back, winning 1934 and 1938.'},
+  {c:'WC Winners',d:'H',q:'Who won the 1950 World Cup?',o:['Brazil','Uruguay','Sweden','Spain'],a:1,f:'Uruguay stunned host Brazil 2–1 — the famous "Maracanazo".'},
+  {c:'WC Winners',d:'H',q:'Who won the 1954 World Cup?',o:['Hungary','West Germany','Austria','Uruguay'],a:1,f:'West Germany beat Hungary in the "Miracle of Bern".'},
+  {c:'WC Winners',d:'M',q:'Who won the 1958 World Cup?',o:['Sweden','Brazil','France','West Germany'],a:1,f:'A 17-year-old Pelé led Brazil to their first title.'},
+  {c:'WC Winners',d:'H',q:'Who won the 1962 World Cup?',o:['Czechoslovakia','Brazil','Chile','USSR'],a:1,f:'Brazil retained the trophy in 1962, even without an injured Pelé.'},
+  {c:'WC Winners',d:'M',q:'Who won the 1966 World Cup?',o:['England','West Germany','Portugal','USSR'],a:0,f:"England's only World Cup title came at home in 1966."},
+  {c:'WC Winners',d:'M',q:'Who won the 1970 World Cup?',o:['Italy','Brazil','Uruguay','West Germany'],a:1,f:'Brazil won a third title and kept the Jules Rimet Trophy for good.'},
+  {c:'WC Winners',d:'H',q:'Who won the 1974 World Cup?',o:['Netherlands','West Germany','Poland','Brazil'],a:1,f:'West Germany beat Cruyff’s Netherlands in the 1974 final.'},
+  {c:'WC Winners',d:'H',q:'Who won the 1978 World Cup?',o:['Argentina','Netherlands','Brazil','Italy'],a:0,f:'Argentina won their first title as hosts in 1978.'},
+  {c:'WC Winners',d:'H',q:'Who won the 1982 World Cup?',o:['West Germany','Italy','Poland','France'],a:1,f:'Paolo Rossi fired Italy to the 1982 crown.'},
+  {c:'WC Winners',d:'M',q:'Who won the 1986 World Cup?',o:['Argentina','West Germany','France','Belgium'],a:0,f:'Maradona dragged Argentina to glory in Mexico 1986.'},
+  {c:'WC Winners',d:'H',q:'Who won the 1990 World Cup?',o:['Argentina','West Germany','Italy','England'],a:1,f:'West Germany edged Argentina 1–0 in the 1990 final.'},
+  {c:'WC Winners',d:'M',q:'Who won the 1994 World Cup?',o:['Italy','Brazil','Sweden','Bulgaria'],a:1,f:'Brazil beat Italy on penalties — the first final decided by a shootout.'},
+  {c:'WC Winners',d:'M',q:'Who won the 1998 World Cup?',o:['Brazil','France','Croatia','Netherlands'],a:1,f:'France won their first title at home, beating Brazil 3–0.'},
+  {c:'WC Winners',d:'M',q:'Who won the 2002 World Cup?',o:['Germany','Brazil','Turkey','South Korea'],a:1,f:'Ronaldo scored both goals as Brazil beat Germany.'},
+  {c:'WC Winners',d:'M',q:'Who won the 2006 World Cup?',o:['France','Italy','Germany','Portugal'],a:1,f:'Italy beat France on penalties after Zidane’s famous headbutt.'},
+  {c:'WC Winners',d:'E',q:'Who won the 2010 World Cup?',o:['Netherlands','Spain','Germany','Uruguay'],a:1,f:'Spain won their first title in the first African World Cup.'},
+  {c:'WC Winners',d:'E',q:'Who won the 2014 World Cup?',o:['Argentina','Germany','Brazil','Netherlands'],a:1,f:"Mario Götze's extra-time goal won it for Germany in Brazil."},
+  {c:'WC Winners',d:'E',q:'Who won the 2018 World Cup?',o:['Croatia','France','Belgium','England'],a:1,f:'France beat Croatia 4–2 in a thrilling 2018 final.'},
+  {c:'WC Winners',d:'E',q:'Who won the 2022 World Cup?',o:['France','Argentina','Croatia','Morocco'],a:1,f:'Argentina beat France on penalties after a 3–3 classic.'},
+  // Hosts
+  {c:'WC Hosts',d:'H',q:'Which country hosted the 1950 World Cup?',o:['Brazil','Chile','Mexico','Argentina'],a:0,f:'Brazil hosted in 1950 — and lost the decider at the Maracanã.'},
+  {c:'WC Hosts',d:'H',q:'Which country hosted the 1954 World Cup?',o:['Sweden','Switzerland','Italy','Spain'],a:1,f:'Switzerland hosted in 1954, on FIFA’s 50th anniversary.'},
+  {c:'WC Hosts',d:'H',q:'Which country hosted the 1958 World Cup?',o:['Sweden','Chile','England','France'],a:0,f:'Sweden hosted 1958, where Pelé burst onto the scene.'},
+  {c:'WC Hosts',d:'H',q:'Which country hosted the 1962 World Cup?',o:['Brazil','Chile','Mexico','Peru'],a:1,f:'Chile hosted the 1962 World Cup.'},
+  {c:'WC Hosts',d:'M',q:'Which country hosted the 1966 World Cup?',o:['Italy','England','Mexico','Sweden'],a:1,f:'England hosted — and won — in 1966.'},
+  {c:'WC Hosts',d:'M',q:'Which country hosted the 1970 World Cup?',o:['Mexico','Spain','Argentina','Chile'],a:0,f:'Mexico hosted in 1970, the first World Cup in North America.'},
+  {c:'WC Hosts',d:'H',q:'Which country hosted the 1974 World Cup?',o:['Netherlands','West Germany','Poland','Brazil'],a:1,f:'West Germany hosted and won in 1974.'},
+  {c:'WC Hosts',d:'H',q:'Which country hosted the 1978 World Cup?',o:['Argentina','Brazil','Spain','Uruguay'],a:0,f:'Argentina hosted and won their first title in 1978.'},
+  {c:'WC Hosts',d:'H',q:'Which country hosted the 1982 World Cup?',o:['Italy','Spain','France','Mexico'],a:1,f:'Spain hosted the expanded 24-team 1982 World Cup.'},
+  {c:'WC Hosts',d:'H',q:'Which country hosted the 1986 World Cup?',o:['Mexico','Colombia','USA','Brazil'],a:0,f:'Mexico stepped in to host 1986 after Colombia withdrew.'},
+  {c:'WC Hosts',d:'M',q:'Which country hosted the 1990 World Cup?',o:['Argentina','Italy','Spain','England'],a:1,f:'Italy hosted the 1990 World Cup.'},
+  {c:'WC Hosts',d:'M',q:'Which country hosted the 1994 World Cup?',o:['Mexico','United States','Canada','Brazil'],a:1,f:'The USA hosted in 1994, setting attendance records.'},
+  {c:'WC Hosts',d:'M',q:'Which country hosted the 1998 World Cup?',o:['France','Italy','Germany','Spain'],a:0,f:'France hosted and won the first 32-team World Cup in 1998.'},
+  {c:'WC Hosts',d:'M',q:'Who co-hosted the 2002 World Cup?',o:['Japan only','South Korea & Japan','China','South Korea only'],a:1,f:'2002 was the first World Cup in Asia, co-hosted by Korea and Japan.'},
+  {c:'WC Hosts',d:'M',q:'Which country hosted the 2006 World Cup?',o:['Italy','Germany','France','Spain'],a:1,f:'Germany hosted the 2006 World Cup.'},
+  {c:'WC Hosts',d:'E',q:'Which country hosted the 2010 World Cup?',o:['Nigeria','South Africa','Egypt','Morocco'],a:1,f:'South Africa hosted the first World Cup on African soil in 2010.'},
+  {c:'WC Hosts',d:'E',q:'Which country hosted the 2014 World Cup?',o:['Argentina','Brazil','Uruguay','Chile'],a:1,f:'Brazil hosted in 2014 — and lost 7–1 to Germany in the semis.'},
+  {c:'WC Hosts',d:'E',q:'Which country hosted the 2018 World Cup?',o:['Germany','Russia','Poland','Ukraine'],a:1,f:'Russia hosted the 2018 World Cup.'},
+  {c:'WC Hosts',d:'E',q:'Which country hosted the 2022 World Cup?',o:['UAE','Qatar','Saudi Arabia','Kuwait'],a:1,f:'Qatar hosted the first winter World Cup in the Arab world.'},
+  // 2026
+  {c:'WC 2026',d:'E',q:'Which three nations are co-hosting the 2026 World Cup?',o:['USA, Canada & Mexico','Qatar & UAE','Brazil & Argentina','Spain & Portugal'],a:0,f:'2026 is the first World Cup hosted by three countries.'},
+  {c:'WC 2026',d:'E',q:'How many teams will play in the 2026 World Cup?',o:['24','32','40','48'],a:3,f:'2026 expands to 48 teams — the largest World Cup ever.'},
+  {c:'WC 2026',d:'E',q:'How many host nations does the 2026 World Cup have?',o:['1','2','3','4'],a:2,f:'Three hosts: the USA, Canada and Mexico.'},
+  {c:'WC 2026',d:'M',q:'Which country will host World Cup matches for a record 3rd time in 2026?',o:['Mexico','USA','Italy','France'],a:0,f:'Mexico hosted in 1970 and 1986, and co-hosts again in 2026.'},
+  {c:'WC 2026',d:'E',q:'Canada co-hosts in 2026 — which sport is its other huge passion?',o:['Cricket','Ice hockey','Rugby','Baseball'],a:1,f:'Ice hockey is Canada’s national winter sport.'},
+  // Records
+  {c:'Records',d:'H',q:'Who is the all-time top scorer in World Cup history?',o:['Ronaldo','Miroslav Klose','Gerd Müller','Pelé'],a:1,f:'Germany’s Miroslav Klose scored a record 16 World Cup goals.'},
+  {c:'Records',d:'H',q:'Who scored a record 13 goals at a single World Cup (1958)?',o:['Just Fontaine','Sándor Kocsis','Pelé','Gerd Müller'],a:0,f:"France's Just Fontaine scored 13 in 1958 — still a record."},
+  {c:'Records',d:'M',q:'Who won the 2022 World Cup Golden Boot?',o:['Lionel Messi','Kylian Mbappé','Olivier Giroud','Julián Álvarez'],a:1,f:'Mbappé scored 8 goals, including a hat-trick in the final.'},
+  {c:'Records',d:'M',q:'Who won the 2018 World Cup Golden Boot?',o:['Harry Kane','Romelu Lukaku','Antoine Griezmann','Kylian Mbappé'],a:0,f:'Harry Kane top-scored with 6 goals in 2018.'},
+  {c:'Records',d:'E',q:'Which nation has won the most World Cup titles?',o:['Germany','Brazil','Italy','Argentina'],a:1,f:'Brazil has won the World Cup a record five times.'},
+  {c:'Records',d:'E',q:'How many World Cup titles has Brazil won?',o:['3','4','5','6'],a:2,f:'Brazil: 1958, 1962, 1970, 1994 and 2002 — five titles.'},
+  {c:'Records',d:'M',q:'How many World Cups did Pelé win as a player?',o:['1','2','3','4'],a:2,f:'Pelé is the only player to win three World Cups (1958, 62, 70).'},
+  {c:'Records',d:'H',q:'How many World Cup titles have both Germany and Italy won?',o:['3','4','5','2'],a:1,f:'Germany and Italy have four titles each, behind Brazil.'},
+  {c:'Records',d:'M',q:'By what score did Germany beat Brazil in the 2014 semi-final?',o:['5–1','7–1','4–0','6–2'],a:1,f:'Germany’s shocking 7–1 win stunned host Brazil in 2014.'},
+  {c:'Records',d:'M',q:'Who scored the winning goal in the 2014 World Cup final?',o:['Thomas Müller','Mario Götze','Mesut Özil','Toni Kroos'],a:1,f:'Götze’s extra-time strike beat Argentina 1–0.'},
+  {c:'Records',d:'H',q:'Who scored the only hat-trick in a World Cup final (1966)?',o:['Bobby Charlton','Geoff Hurst','Jimmy Greaves','Roger Hunt'],a:1,f:'Geoff Hurst’s hat-trick won the 1966 final for England.'},
+  {c:'Records',d:'H',q:'Who held the World Cup goal record (15) before Klose?',o:['Pelé','Ronaldo (Brazil)','Gerd Müller','Batistuta'],a:1,f:'Brazil’s Ronaldo held the record with 15 World Cup goals.'},
+  {c:'Records',d:'H',q:'When was the first World Cup final decided by a penalty shootout?',o:['1986','1990','1994','1998'],a:2,f:'Brazil beat Italy on penalties in 1994.'},
+  {c:'Records',d:'M',q:'How many teams played at World Cups from 1998 to 2022?',o:['16','24','32','40'],a:2,f:'The World Cup had 32 teams from 1998 through 2022.'},
+  {c:'Records',d:'H',q:'How many teams competed at World Cups from 1982 to 1994?',o:['16','20','24','32'],a:2,f:'The field was 24 teams from 1982 to 1994.'},
+  // Awards
+  {c:'Awards',d:'E',q:'Who won the Golden Ball (best player) at the 2022 World Cup?',o:['Kylian Mbappé','Lionel Messi','Luka Modrić','Emiliano Martínez'],a:1,f:'Messi won his second Golden Ball in 2022.'},
+  {c:'Awards',d:'M',q:'Who won the Golden Ball at the 2018 World Cup?',o:['Luka Modrić','Kylian Mbappé','Antoine Griezmann','Eden Hazard'],a:0,f:'Croatia’s Luka Modrić was named 2018’s best player.'},
+  {c:'Awards',d:'E',q:'Who holds the record for most Ballon d’Or awards?',o:['Cristiano Ronaldo','Lionel Messi','Johan Cruyff','Michel Platini'],a:1,f:'Lionel Messi has won the Ballon d’Or a record number of times.'},
+  {c:'Awards',d:'M',q:'How many Ballon d’Or awards has Cristiano Ronaldo won?',o:['3','5','7','8'],a:1,f:'Cristiano Ronaldo has won five Ballons d’Or.'},
+  {c:'Awards',d:'H',q:'The FIFA award for the best goal of the year is named after which legend?',o:['Pelé','Puskás','Di Stéfano','Eusébio'],a:1,f:'The Puskás Award honours Hungarian great Ferenc Puskás.'},
+  {c:'Awards',d:'H',q:'Which magazine originally created the Ballon d’Or?',o:['France Football','FourFourTwo','Kicker','World Soccer'],a:0,f:'The Ballon d’Or was created by France Football in 1956.'},
+  // Legends
+  {c:'Legends',d:'E',q:'Pelé played for which national team?',o:['Argentina','Brazil','Portugal','Spain'],a:1,f:'Pelé, real name Edson Arantes do Nascimento, played for Brazil.'},
+  {c:'Legends',d:'E',q:'Diego Maradona played for which national team?',o:['Argentina','Uruguay','Italy','Mexico'],a:0,f:'Maradona inspired Argentina to the 1986 World Cup.'},
+  {c:'Legends',d:'M',q:'Johan Cruyff, master of "Total Football", played for?',o:['Germany','Netherlands','Belgium','France'],a:1,f:'Cruyff led the Netherlands to the 1974 final.'},
+  {c:'Legends',d:'M',q:'Franz "Der Kaiser" Beckenbauer played for?',o:['Germany','Austria','Switzerland','Netherlands'],a:0,f:'Beckenbauer won the World Cup as both captain and coach for Germany.'},
+  {c:'Legends',d:'M',q:'Zinedine Zidane played for which national team?',o:['Spain','Italy','France','Portugal'],a:2,f:'Zidane led France to their 1998 title.'},
+  {c:'Legends',d:'E',q:'Ronaldinho played for which national team?',o:['Brazil','Portugal','Argentina','Spain'],a:0,f:'Ronaldinho won the 2002 World Cup with Brazil.'},
+  {c:'Legends',d:'E',q:'Cristiano Ronaldo plays for which national team?',o:['Spain','Brazil','Portugal','France'],a:2,f:'Cristiano Ronaldo is Portugal’s all-time top scorer.'},
+  {c:'Legends',d:'E',q:'Lionel Messi plays for which national team?',o:['Spain','Argentina','Uruguay','Brazil'],a:1,f:'Messi captained Argentina to the 2022 World Cup.'},
+  {c:'Legends',d:'E',q:'Neymar plays for which national team?',o:['Portugal','Brazil','Argentina','Colombia'],a:1,f:'Neymar is among Brazil’s all-time leading scorers.'},
+  {c:'Legends',d:'E',q:'Kylian Mbappé plays for which national team?',o:['France','Belgium','Spain','Italy'],a:0,f:'Mbappé scored in both the 2018 and 2022 finals for France.'},
+  {c:'Legends',d:'M',q:'Luka Modrić plays for which national team?',o:['Serbia','Croatia','Slovenia','Bosnia'],a:1,f:'Modrić captained Croatia to the 2018 final.'},
+  {c:'Legends',d:'E',q:'Robert Lewandowski plays for which national team?',o:['Poland','Czechia','Ukraine','Hungary'],a:0,f:'Lewandowski is Poland’s record goalscorer.'},
+  {c:'Legends',d:'E',q:'Erling Haaland plays for which national team?',o:['Sweden','Denmark','Norway','Iceland'],a:2,f:'Haaland is Norway’s star striker.'},
+  {c:'Legends',d:'E',q:'Son Heung-min plays for which national team?',o:['Japan','China','South Korea','Vietnam'],a:2,f:'Son captains South Korea, the Taeguk Warriors.'},
+  {c:'Legends',d:'E',q:'Mohamed Salah plays for which national team?',o:['Morocco','Egypt','Algeria','Tunisia'],a:1,f:'Salah is Egypt’s talisman and record scorer.'},
+  {c:'Legends',d:'M',q:'Luis Suárez played for which national team?',o:['Argentina','Colombia','Uruguay','Chile'],a:2,f:'Suárez starred for Uruguay across four World Cups.'},
+  {c:'Legends',d:'M',q:'Kevin De Bruyne plays for which national team?',o:['Netherlands','Belgium','Germany','France'],a:1,f:'De Bruyne is a key creator for Belgium.'},
+  {c:'Legends',d:'E',q:'Harry Kane plays for which national team?',o:['England','Scotland','Wales','Ireland'],a:0,f:'Kane is England’s all-time leading goalscorer.'},
+  {c:'Legends',d:'H',q:'Gerd "Der Bomber" Müller played for?',o:['Austria','Germany','Netherlands','Switzerland'],a:1,f:'Müller scored the winner in the 1974 World Cup final.'},
+  {c:'Legends',d:'H',q:'Which Brazilian played in three straight World Cup finals (1994–2002)?',o:['Cafu','Roberto Carlos','Rivaldo','Dunga'],a:0,f:'Cafu captained Brazil and reached three consecutive finals.'},
+  {c:'Legends',d:'H',q:'Who coached Argentina at the 2010 World Cup?',o:['Lionel Scaloni','Diego Maradona','Marcelo Bielsa','César Menotti'],a:1,f:'Maradona managed Argentina at the 2010 tournament.'},
+  {c:'Legends',d:'H',q:'Who was the "Magical Magyars" star of the 1950s Hungary side?',o:['Ferenc Puskás','Sándor Kocsis','Nándor Hidegkuti','Zoltán Czibor'],a:0,f:'Ferenc Puskás led Hungary’s legendary 1950s team.'},
+  // Nicknames
+  {c:'Nicknames',d:'M',q:'Which team is nicknamed "La Albiceleste"?',o:['Spain','Argentina','Italy','Uruguay'],a:1,f:'"La Albiceleste" means the white-and-sky-blue — Argentina.'},
+  {c:'Nicknames',d:'M',q:'The Brazil national team is also called the…',o:['Oranje','Seleção','Azzurri','Les Bleus'],a:1,f:'"Seleção" simply means "the selection" in Portuguese.'},
+  {c:'Nicknames',d:'M',q:'Italy’s national team is nicknamed the…',o:['Azzurri','Oranje','La Roja','Three Lions'],a:0,f:'"Azzurri" means the Blues — Italy’s shirt colour.'},
+  {c:'Nicknames',d:'M',q:'The Netherlands national team is known as…',o:['Oranje','Azzurri','Seleção','Three Lions'],a:0,f:'"Oranje" reflects the Dutch royal House of Orange.'},
+  {c:'Nicknames',d:'E',q:'England’s national team is nicknamed the…',o:['Three Lions','Les Bleus','La Roja','Oranje'],a:0,f:'The Three Lions appear on the England crest.'},
+  {c:'Nicknames',d:'M',q:'Germany’s national team is nicknamed…',o:['Die Mannschaft','Les Bleus','Azzurri','Oranje'],a:0,f:'"Die Mannschaft" simply means "the team".'},
+  {c:'Nicknames',d:'M',q:'France’s national team is nicknamed…',o:['La Roja','Les Bleus','Oranje','Azzurri'],a:1,f:'"Les Bleus" means the Blues.'},
+  {c:'Nicknames',d:'M',q:'Spain’s national team is nicknamed "La Roja", meaning "The…"?',o:['Blues','Red','Whites','Greens'],a:1,f:'"La Roja" means the Red.'},
+  {c:'Nicknames',d:'M',q:'Belgium’s national team is nicknamed the…',o:['Red Devils','Blue Lions','Golden Eagles','Black Cats'],a:0,f:'Belgium are the Red Devils / Rode Duivels.'},
+  {c:'Nicknames',d:'M',q:'Mexico’s national team is nicknamed…',o:['El Tri','La Roja','Los Ticos','La Vinotinto'],a:0,f:'"El Tri" refers to Mexico’s tricolour flag.'},
+  {c:'Nicknames',d:'M',q:'Japan’s national team is nicknamed…',o:['Samurai Blue','Taeguk Warriors','Dragons','Blue Tigers'],a:0,f:'Japan play as Samurai Blue.'},
+  {c:'Nicknames',d:'M',q:'Australia’s national team is nicknamed the…',o:['Kiwis','Socceroos','Wallabies','Kangaroos FC'],a:1,f:'Australia are famously the Socceroos.'},
+  {c:'Nicknames',d:'M',q:'Nigeria’s national team is nicknamed the…',o:['Black Stars','Super Eagles','Elephants','Lions'],a:1,f:'Nigeria are the Super Eagles.'},
+  {c:'Nicknames',d:'H',q:'Cameroon’s national team is nicknamed the…',o:['Indomitable Lions','Black Stars','Pharaohs','Eagles'],a:0,f:'Cameroon are the Indomitable Lions.'},
+  {c:'Nicknames',d:'M',q:'Ghana’s national team is nicknamed the…',o:['Super Eagles','Black Stars','Leopards','Cranes'],a:1,f:'Ghana are the Black Stars.'},
+  {c:'Nicknames',d:'H',q:'Senegal’s national team is nicknamed the "Lions of…"?',o:['Teranga','Atlas','the Sahara','Africa'],a:0,f:'Senegal are the Lions of Teranga.'},
+  {c:'Nicknames',d:'H',q:'Uruguay’s national team is nicknamed…',o:['La Celeste','La Roja','El Tri','Albiceleste'],a:0,f:'"La Celeste" means the sky-blue.'},
+  {c:'Nicknames',d:'H',q:'Croatia’s national team is nicknamed "Vatreni", meaning the…',o:['Fiery Ones','Checkers','Lions','Blues'],a:0,f:'"Vatreni" means the fiery/blazing ones.'},
+  {c:'Nicknames',d:'H',q:'South Korea’s national team is nicknamed the…',o:['Samurai Blue','Taeguk Warriors','Blue Dragons','Tigers'],a:1,f:'South Korea are the Taeguk Warriors.'},
+  {c:'Nicknames',d:'M',q:'Egypt’s national team is nicknamed the…',o:['Pharaohs','Carthage Eagles','Desert Foxes','Lions'],a:0,f:'Egypt are known as the Pharaohs.'},
+  {c:'Nicknames',d:'M',q:'Morocco’s national team is nicknamed the "Atlas…"?',o:['Lions','Eagles','Foxes','Stars'],a:0,f:'Morocco are the Atlas Lions.'},
+  {c:'Nicknames',d:'H',q:'Ivory Coast’s national team is nicknamed the…',o:['Elephants','Leopards','Lions','Eagles'],a:0,f:'Ivory Coast are the Elephants (Les Éléphants).'},
+  // FIFA
+  {c:'FIFA',d:'M',q:'In what year was FIFA founded?',o:['1888','1904','1930','1958'],a:1,f:'FIFA was founded in 1904.'},
+  {c:'FIFA',d:'H',q:'In which city was FIFA founded?',o:['London','Paris','Zurich','Rome'],a:1,f:'FIFA was founded in Paris in 1904.'},
+  {c:'FIFA',d:'M',q:'Where is FIFA’s headquarters today?',o:['Paris','London','Zurich','Geneva'],a:2,f:'FIFA is headquartered in Zurich, Switzerland.'},
+  {c:'FIFA',d:'H',q:'How many continental confederations make up FIFA?',o:['4','5','6','7'],a:2,f:'There are six confederations across the globe.'},
+  {c:'FIFA',d:'E',q:'Which confederation governs football in Europe?',o:['UEFA','CONMEBOL','CAF','AFC'],a:0,f:'UEFA is the European football confederation.'},
+  {c:'FIFA',d:'M',q:'Which confederation governs football in South America?',o:['CONCACAF','CONMEBOL','UEFA','OFC'],a:1,f:'CONMEBOL is South America’s confederation.'},
+  {c:'FIFA',d:'M',q:'Which confederation governs African football?',o:['CAF','AFC','OFC','CONCACAF'],a:0,f:'CAF is the Confederation of African Football.'},
+  {c:'FIFA',d:'M',q:'Which confederation governs Asian football?',o:['AFC','CAF','UEFA','OFC'],a:0,f:'AFC is the Asian Football Confederation.'},
+  {c:'FIFA',d:'H',q:'Which confederation covers North America and the Caribbean?',o:['CONMEBOL','CONCACAF','OFC','AFC'],a:1,f:'CONCACAF covers North/Central America and the Caribbean.'},
+  {c:'FIFA',d:'M',q:'Which confederation governs football in Oceania?',o:['AFC','OFC','CAF','UEFA'],a:1,f:'OFC is the Oceania Football Confederation.'},
+  {c:'FIFA',d:'E',q:'How often is the FIFA World Cup held?',o:['Every 2 years','Every 3 years','Every 4 years','Every 5 years'],a:2,f:'The World Cup is held every four years.'},
+  {c:'FIFA',d:'M',q:'In what year was the first World Cup held?',o:['1900','1924','1930','1950'],a:2,f:'The first World Cup kicked off in 1930.'},
+  {c:'FIFA',d:'H',q:'FIFA is French for…',o:['Federation of Football','International Federation of Association Football','Football International Federation','Federated Football Associations'],a:1,f:'FIFA = Fédération Internationale de Football Association.'},
+  {c:'FIFA',d:'H',q:'In what year was the first Women’s World Cup held?',o:['1985','1991','1995','1999'],a:1,f:'The first Women’s World Cup was held in China in 1991.'},
+  {c:'FIFA',d:'H',q:'Which country won the inaugural 1991 Women’s World Cup?',o:['USA','Norway','Germany','China'],a:0,f:'The USA won the first Women’s World Cup in 1991.'},
+  // Trophies / moments
+  {c:'Trophies',d:'H',q:'In what year was the current World Cup trophy first awarded?',o:['1966','1970','1974','1982'],a:2,f:'The current FIFA World Cup Trophy debuted in 1974.'},
+  {c:'Trophies',d:'H',q:'Which trophy did Brazil keep permanently after winning in 1970?',o:['Jules Rimet Trophy','FIFA Trophy','Coupe Henri Delaunay','The Globe'],a:0,f:'Brazil’s third title let them keep the Jules Rimet Trophy.'},
+  {c:'Stadiums',d:'M',q:'The famous Maracanã stadium is in which city?',o:['São Paulo','Rio de Janeiro','Buenos Aires','Lisbon'],a:1,f:'The Maracanã is Rio de Janeiro’s iconic stadium.'},
+  {c:'Stadiums',d:'E',q:'Wembley Stadium is located in which country?',o:['England','Spain','Germany','Italy'],a:0,f:'Wembley is the home of English football in London.'},
+  {c:'Mascots',d:'H',q:'What was the first-ever World Cup mascot (1966)?',o:['Naranjito','World Cup Willie','Footix','Zakumi'],a:1,f:'World Cup Willie, a lion, debuted at England 1966.'},
+  {c:'Mascots',d:'M',q:'What was the official mascot of the 2022 World Cup?',o:['Zabivaka','La’eeb','Fuleco','Footix'],a:1,f:'La’eeb was the playful mascot of Qatar 2022.'},
+  {c:'Moments',d:'M',q:'Which noisy instrument became famous at the 2010 World Cup?',o:['Vuvuzela','Bagpipes','Maracas','Air horn'],a:0,f:'The buzzing vuvuzela was the sound of South Africa 2010.'},
+  {c:'Moments',d:'M',q:'Who headbutted Marco Materazzi in the 2006 final?',o:['Thierry Henry','Zinedine Zidane','Patrick Vieira','Lilian Thuram'],a:1,f:'Zidane was sent off for the headbutt in his final game.'},
+  {c:'Moments',d:'M',q:'Whose "Hand of God" goal beat England in 1986?',o:['Maradona','Batistuta','Valdano','Burruchaga'],a:0,f:'Maradona punched in the infamous "Hand of God" goal.'},
+  {c:'Moments',d:'M',q:'Maradona’s "Goal of the Century" in 1986 was against which team?',o:['Brazil','England','Belgium','Italy'],a:1,f:'He dribbled past half the England team to score it.'},
+  {c:'Moments',d:'M',q:'The 2022 World Cup was unusually held in which season?',o:['Spring','Summer','Autumn/Winter','Year-round'],a:2,f:'Qatar 2022 was moved to Nov–Dec to avoid the desert heat.'},
+  {c:'Moments',d:'M',q:'Which African nation reached the semi-finals for the first time in 2022?',o:['Senegal','Morocco','Ghana','Cameroon'],a:1,f:'Morocco became the first African team to reach a World Cup semi-final.'},
+  {c:'Moments',d:'H',q:'Which was the first Asian team to reach a World Cup semi-final (2002)?',o:['Japan','South Korea','Saudi Arabia','Iran'],a:1,f:'Co-hosts South Korea reached the 2002 semi-finals.'},
+  {c:'Moments',d:'H',q:'Which African team first reached a World Cup quarter-final (1990)?',o:['Nigeria','Cameroon','Senegal','Ghana'],a:1,f:'Cameroon’s 1990 run, led by Roger Milla, made history.'},
+  // Rules
+  {c:'Rules',d:'E',q:'How many players from each team are on the pitch at kick-off?',o:['9','10','11','12'],a:2,f:'Each side fields 11 players, including the goalkeeper.'},
+  {c:'Rules',d:'E',q:'How long is a standard football match (excluding stoppages)?',o:['60 minutes','80 minutes','90 minutes','100 minutes'],a:2,f:'Two halves of 45 minutes make 90 minutes.'},
+  {c:'Rules',d:'E',q:'In a knockout tie, what decides the winner after extra time?',o:['Coin toss','Penalty shootout','Replay','Most corners'],a:1,f:'A penalty shootout settles a level knockout match.'},
+  {c:'Rules',d:'E',q:'What must a player do after receiving a red card?',o:['Sit for 10 minutes','Leave the field','Pay a fine','Swap positions'],a:1,f:'A red card means the player is sent off for the rest of the match.'},
+  {c:'Rules',d:'E',q:'How many points is a win worth in the World Cup group stage?',o:['1','2','3','4'],a:2,f:'A win is worth three points; a draw, one.'},
+  {c:'Rules',d:'E',q:'A goalkeeper may use their hands only within which area?',o:['The whole half','The penalty area','The centre circle','Anywhere'],a:1,f:'Goalkeepers can handle the ball only inside their penalty area.'},
+  {c:'Rules',d:'E',q:'Video review used to check key decisions is called…?',o:['VAR','GLT','OFR','TMO'],a:0,f:'VAR stands for Video Assistant Referee.'},
+  // General
+  {c:'General',d:'H',q:'Which continent has won the most World Cup titles?',o:['Europe','South America','Africa','Asia'],a:0,f:'European nations have won 12 titles to South America’s 10.'},
+  {c:'General',d:'M',q:'How many South American nations have won the World Cup?',o:['2','3','4','5'],a:1,f:'Brazil, Argentina and Uruguay — three South American winners.'},
+  {c:'General',d:'M',q:'Only teams from which two continents have won the World Cup?',o:['Europe & Africa','Europe & South America','Asia & Europe','South America & Africa'],a:1,f:'Every World Cup winner has come from Europe or South America.'},
+  {c:'General',d:'M',q:'Which European nation won its first World Cup in 2010?',o:['Spain','Portugal','Netherlands','Belgium'],a:0,f:'Spain lifted their first World Cup in 2010.'},
+  {c:'General',d:'M',q:'Pelé’s real full name is…',o:['Edson Arantes do Nascimento','Manoel Francisco dos Santos','Arthur Antunes Coimbra','Ricardo Izecson dos Santos'],a:0,f:'Pelé was born Edson Arantes do Nascimento.'},
+  {c:'General',d:'H',q:'"Garrincha", a 1958/62 Brazil star, was famous for his…',o:['Dribbling','Goalkeeping','Free kicks','Headers'],a:0,f:'Garrincha was one of football’s greatest dribblers.'},
+  {c:'General',d:'H',q:'Which country lost three World Cup finals (1974, 1978, 2010)?',o:['Hungary','Netherlands','Czechoslovakia','Sweden'],a:1,f:'The Netherlands are famous runners-up — three finals, no title.'},
+  {c:'General',d:'M',q:'Kaká, the 2007 Ballon d’Or winner, played for?',o:['Portugal','Brazil','Argentina','Italy'],a:1,f:'Kaká won the 2002 World Cup with Brazil.'},
+  {c:'General',d:'H',q:'In which stadium was the 2022 World Cup final played?',o:['Lusail Stadium','Khalifa Stadium','Wembley','Maracanã'],a:0,f:'The 2022 final was played at Lusail Stadium near Doha.'},
+];
+
+/* ===================== Daily selection by tier ===================== */
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function shuffleRng(arr, rng){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+const today = new Date();
+const dayKey = Math.floor(Date.UTC(today.getFullYear(),today.getMonth(),today.getDate())/86400000);
+const baseKey = Math.floor(Date.UTC(2026,5,14)/86400000);
+const dayNumber = dayKey - baseKey + 1;
+const dateStr = today.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+
+function dailyQuestions(){
+  const rng = mulberry32(dayKey||1);
+  const pools = { E:shuffleRng(BANK.filter(q=>q.d==='E'),rng),
+                  M:shuffleRng(BANK.filter(q=>q.d==='M'),rng),
+                  H:shuffleRng(BANK.filter(q=>q.d==='H'),rng) };
+  const templates = [['E','E','M','M','H'], ['E','E','M','H','H']];
+  const tmpl = templates[Math.floor(rng()*templates.length)];
+  const idx = {E:0,M:0,H:0};
+  return tmpl.map(t => pools[t][idx[t]++]);
+}
+
+/* ===================== Game state ===================== */
+const GOAL = { x: W/2-150, y:70, w:300, h:90 };
+const BALL_HOME = { x: W/2, y: H-96 };
+const BEST_KEY='purinWCBest', NAME_KEY='purinWCName';
+
+let state='idle', kick='ready';
+let quiz=[], qIndex=0, correctCount=0, totalGoals=0, results=[];
+let answered=false, quizTime=10, penaltyTime=0;
+let ball, keeper, charging=false, power=0, aim={x:W/2,y:GOAL.y};
+let flash=null, lastTs=0, cheerIdx=0;
+let playerName = localStorage.getItem(NAME_KEY) || '';
+let best = parseInt(localStorage.getItem(BEST_KEY)||'0',10) || 0;
+
+// gentler difficulty curve
+function effDiff(){ return Math.min(0.8, qIndex*0.11 + totalGoals*0.02); }
+function resetBall(){ ball={x:BALL_HOME.x,y:BALL_HOME.y,vx:0,vy:0,r:14,scale:1,spin:0}; }
+function newKeeper(){
+  const d=effDiff();
+  keeper={ x:W/2, y:GOAL.y+GOAL.h-18, w:44+d*22, h:70, dir:1, speed:80+d*80,
+           diving:false, targetX:W/2, lean:0 };
+  cheerIdx++;
+}
+
+function updateHud(){
+  els.day.textContent=dayNumber;
+  els.qnum.textContent = state==='gameover'?5:Math.min(qIndex+1,5);
+  els.correct.textContent=correctCount; els.goals.textContent=totalGoals; els.best.textContent=best;
+  els.time.textContent = state==='quiz'?Math.ceil(quizTime)+'s' : state==='penalty'?Math.ceil(penaltyTime)+'s' : '–';
+}
+function show(ov){ [els.startOv,els.quizOv,els.resultOv].forEach(o=>o.classList.remove('show')); if(ov) ov.classList.add('show'); }
+
+/* ===================== Flow ===================== */
+function startGame(){
+  playerName = (els.nameInput.value||'').trim().slice(0,14) || playerName || 'Champ';
+  localStorage.setItem(NAME_KEY, playerName);
+  quiz = dailyQuestions();
+  qIndex=0; correctCount=0; totalGoals=0; results=[];
+  resetBall(); showQuiz();
+}
+function showQuiz(){
+  state='quiz'; answered=false; quizTime=10;
+  const item=quiz[qIndex];
+  const tier = item.d==='E'?'Easy':item.d==='M'?'Medium':'Hard';
+  els.qcat.textContent=`Q${qIndex+1} of 5 · ${item.c} · ${tier}`;
+  els.qtext.textContent=item.q;
+  els.qfeedback.innerHTML='&nbsp;'; els.qtimerfill.style.width='100%'; els.qopts.innerHTML='';
+  const rng=mulberry32(dayKey*131 + qIndex*7 + 3);
+  const order=shuffleRng(item.o.map((t,i)=>({t,correct:i===item.a})), rng);
+  order.forEach(opt=>{ const b=document.createElement('button'); b.className='opt'; b.textContent=opt.t;
+    b.onclick=()=>answer(b,opt.correct,order,item); els.qopts.appendChild(b); });
+  els.hint.textContent='Pick the right answer within 10 seconds!';
+  show(els.quizOv); updateHud();
+}
+function revealCorrect(order){ [...els.qopts.children].forEach((b,i)=>{ b.disabled=true; if(order[i].correct) b.classList.add('correct'); }); }
+function answer(btn,isCorrect,order,item){
+  if(answered) return; answered=true; revealCorrect(order);
+  if(isCorrect){
+    correctCount++; results.push(true);
+    els.qfeedback.textContent='✅ Correct! '+item.f+'  (Penalty kick next!)';
+    updateHud(); setTimeout(startPenalty,2000);
+  }else{
+    btn.classList.add('wrong'); results.push(false);
+    els.qfeedback.textContent='❌ Nope. '+item.f;
+    setTimeout(nextQuiz,2400);
+  }
+}
+function timeoutAnswer(){
+  if(answered) return; answered=true;
+  const item=quiz[qIndex];
+  [...els.qopts.children].forEach(b=>{ b.disabled=true; if(b.textContent===item.o[item.a]) b.classList.add('correct'); });
+  results.push(false);
+  els.qfeedback.textContent="⏰ Time's up! "+item.f;
+  setTimeout(nextQuiz,2400);
+}
+function startPenalty(){
+  show(null); state='penalty'; kick='ready';
+  penaltyTime=10; power=0; charging=false; resetBall(); newKeeper();
+  els.hint.textContent='Hold to charge, release to shoot — go, '+playerName+'!';
+  updateHud();
+}
+function endPenalty(){ nextQuiz(); }
+function nextQuiz(){ qIndex++; if(qIndex>=5) endGame(); else showQuiz(); }
+function endGame(){
+  state='gameover';
+  const score=correctCount*100 + totalGoals*50;
+  if(score>best){ best=score; localStorage.setItem(BEST_KEY,String(best)); }
+  els.resDay.textContent=dayNumber;
+  els.resMarks.textContent=results.map(r=>r?'✅':'❌').join('');
+  els.finalScore.textContent=score;
+  els.resCorrect.textContent=`🧠 Quiz: ${correctCount}/5 correct`;
+  els.resGoals.textContent=`⚽ Goals scored: ${totalGoals}`;
+  let grade='Keep practising';
+  if(score>=650) grade='World Cup Legend! 🐱👑';
+  else if(score>=450) grade='Star Striker! 🌟';
+  else if(score>=250) grade='Solid squad player! 💪';
+  els.resGrade.textContent=`${playerName}: ${grade}`;
+  els.shareToast.innerHTML='&nbsp;';
+  els.hint.textContent='Great game! Share your score, or play again.';
+  show(els.resultOv); updateHud();
+}
+function shareText(){
+  const score=correctCount*100 + totalGoals*50;
+  const marks=results.map(r=>r?'✅':'❌').join('');
+  return `🐱⚽ ${playerName}'s Popo World Cup Quiz — Day #${dayNumber} (${dateStr})\n`+
+         `${marks}  ${correctCount}/5\n`+
+         `⚽ Goals: ${totalGoals}   🏆 Score: ${score}\nCan you beat me?`;
+}
+async function doShare(){
+  const text=shareText();
+  try{ if(navigator.share){ await navigator.share({title:'Popo World Cup Quiz', text}); els.shareToast.textContent='Shared! 🎉'; return; } }
+  catch(e){ return; }
+  els.shareToast.textContent='Sharing isn’t available on this device.';
+}
+
+/* ===================== Input ===================== */
+function pos(e){ const r=cv.getBoundingClientRect(); const p=(e.touches?e.touches[0]:e);
+  return {x:(p.clientX-r.left)*W/r.width, y:(p.clientY-r.top)*H/r.height}; }
+function canKick(){ return state==='penalty' && kick==='ready'; }
+function onMove(e){ if(!canKick()) return; aim=pos(e); }
+function onDown(e){ if(!canKick()) return; e.preventDefault(); charging=true; power=0; aim=pos(e); }
+function onUp(e){ if(!canKick()||!charging) return; e.preventDefault(); charging=false; shoot(); }
+cv.addEventListener('mousemove',onMove); cv.addEventListener('mousedown',onDown); window.addEventListener('mouseup',onUp);
+cv.addEventListener('touchmove',e=>{onMove(e); if(canKick()) e.preventDefault();},{passive:false});
+cv.addEventListener('touchstart',onDown,{passive:false}); window.addEventListener('touchend',onUp,{passive:false});
+els.startBtn.onclick=startGame; els.againBtn.onclick=startGame; els.shareBtn.onclick=doShare;
+els.nameInput.addEventListener('keydown',e=>{ if(e.key==='Enter') startGame(); });
+
+function shoot(){
+  const dx=aim.x-ball.x, dy=aim.y-ball.y, len=Math.hypot(dx,dy)||1;
+  const speed=320+power*9;
+  ball.vx=dx/len*speed; ball.vy=dy/len*speed; ball.spin=(Math.random()-.5)*0.4; kick='flying';
+}
+function resolveKick(goal,msg){
+  if(goal){ totalGoals++; flash={msg,color:'#1f9d3a',t:1.0}; }
+  else flash={msg,color:'#c0392b',t:1.0};
+  kick='resolve'; updateHud();
+  setTimeout(()=>{ if(state!=='penalty') return;
+    if(penaltyTime>0){ resetBall(); newKeeper(); power=0; kick='ready'; } else endPenalty(); },600);
+}
+
+/* ===================== Update ===================== */
+function update(dt){
+  if(state==='quiz' && !answered){
+    quizTime=Math.max(0,quizTime-dt); els.qtimerfill.style.width=(quizTime/10*100)+'%';
+    if(quizTime<=0) timeoutAnswer();
+  }
+  if(state==='penalty'){
+    penaltyTime=Math.max(0,penaltyTime-dt);
+    if(charging && kick==='ready') power=Math.min(100,power+dt*80);
+    if(kick==='flying'){
+      ball.x+=ball.vx*dt; ball.y+=ball.vy*dt; ball.vx+=ball.spin*60*dt;
+      ball.scale=Math.max(0.45, ball.y/H);
+      if(ball.x<ball.r||ball.x>W-ball.r){ ball.vx*=-0.7; ball.x=Math.max(ball.r,Math.min(W-ball.r,ball.x)); }
+      if(!keeper.diving && ball.y<GOAL.y+150 && ball.vy<0){
+        const t=(ball.y-GOAL.y)/(-ball.vy); let px=ball.x+ball.vx*t;
+        const err=(1-effDiff())*300+90;   // weaker keeper: large aiming error
+        keeper.targetX=Math.max(GOAL.x+keeper.w/2, Math.min(GOAL.x+GOAL.w-keeper.w/2, px+(Math.random()*2-1)*err));
+        keeper.diving=true;
+      }
+      if(ball.y<keeper.y+keeper.h/2 && ball.y>keeper.y-keeper.h/2 &&
+         Math.abs(ball.x-keeper.x)<keeper.w/2 + ball.r*ball.scale) return resolveKick(false,'Saved! 🧤');
+      if(ball.y<=GOAL.y){ const inMouth=ball.x>GOAL.x && ball.x<GOAL.x+GOAL.w;
+        return resolveKick(inMouth, inMouth?'GOAL! 🎉':'Missed! 😅'); }
+    }
+    if(keeper.diving){
+      const dx=keeper.targetX-keeper.x;
+      keeper.x += Math.sign(dx)*Math.min(Math.abs(dx), 700*dt);   // slower dive reach
+      keeper.lean=Math.max(-0.55,Math.min(0.55,dx*0.012));
+    } else if(kick!=='resolve'){
+      keeper.x += keeper.dir*keeper.speed*dt;
+      const L=GOAL.x+keeper.w/2, R=GOAL.x+GOAL.w-keeper.w/2;
+      if(keeper.x<L){keeper.x=L;keeper.dir=1;} if(keeper.x>R){keeper.x=R;keeper.dir=-1;}
+      keeper.lean*=(1-Math.min(1,dt*6));
+    }
+    if(penaltyTime<=0 && kick==='ready') endPenalty();
+  }
+}
+
+/* ===================== Drawing ===================== */
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function drawField(){
+  for(let i=0;i<8;i++){ ctx.fillStyle=i%2?'#379343':'#3fa34d'; ctx.fillRect(0,i*H/8,W,H/8); }
+  ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(W/2,GOAL.y+GOAL.h+150,120,0.15*Math.PI,0.85*Math.PI); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.85)'; ctx.beginPath(); ctx.arc(BALL_HOME.x,BALL_HOME.y+24,4,0,7); ctx.fill();
+}
+function drawGoal(){
+  const {x,y,w,h}=GOAL;
+  ctx.fillStyle='rgba(255,255,255,.16)'; ctx.fillRect(x,y-30,w,h+30);
+  ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=1;
+  for(let i=0;i<=w;i+=14){ ctx.beginPath(); ctx.moveTo(x+i,y-30); ctx.lineTo(x+i,y+h); ctx.stroke(); }
+  for(let j=-30;j<=h;j+=14){ ctx.beginPath(); ctx.moveTo(x,y+j); ctx.lineTo(x+w,y+j); ctx.stroke(); }
+  ctx.strokeStyle='#fff'; ctx.lineWidth=7; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x,y+h); ctx.lineTo(x,y-30); ctx.lineTo(x+w,y-30); ctx.lineTo(x+w,y+h); ctx.stroke();
+}
+function drawKeeper(){
+  const k=keeper; ctx.save(); ctx.translate(k.x,k.y); ctx.rotate(k.lean);
+  ctx.fillStyle='#2b2f44'; roundRect(-k.w/2,-k.h/2,k.w,k.h,16); ctx.fill();
+  ctx.fillStyle='#fdfdfd'; roundRect(-k.w/2+10,-k.h/2+14,k.w-20,k.h-16,12); ctx.fill();
+  ctx.fillStyle='#ffcf3f'; const reach=keeper.diving?16:0;
+  ctx.beginPath(); ctx.arc(-k.w/2-reach,-6,9,0,7); ctx.arc(k.w/2+reach,-6,9,0,7); ctx.fill();
+  ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(-9,-k.h/2+12,3.2,0,7); ctx.arc(9,-k.h/2+12,3.2,0,7); ctx.fill();
+  ctx.restore();
+}
+// Popo — Alier's orange-and-white cat
+function drawPopo(x,y,s=1){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  const ORANGE='#e6913c', ORANGE_D='#cf7a28', WHITE='#fcf7ef', PINK='#e79aa0', INK='#4a3a2a', GREEN='#8fb95f';
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(0,56,48,11,0,0,7); ctx.fill();
+  // curling orange tail
+  ctx.strokeStyle=ORANGE; ctx.lineWidth=13; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(32,44); ctx.quadraticCurveTo(70,34,60,4); ctx.stroke();
+  // body: orange back, white chest
+  ctx.fillStyle=ORANGE; ctx.beginPath(); ctx.ellipse(0,28,36,30,0,0,7); ctx.fill();
+  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(0,34,23,24,0,0,7); ctx.fill();
+  // white front paws
+  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(-14,52,10,7,0,0,7); ctx.ellipse(14,52,10,7,0,0,7); ctx.fill();
+  ctx.strokeStyle=ORANGE_D; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-14,47); ctx.lineTo(-14,52); ctx.moveTo(14,47); ctx.lineTo(14,52); ctx.stroke();
+  // ears (orange outer + pink inner)
+  ctx.fillStyle=ORANGE;
+  ctx.beginPath(); ctx.moveTo(-36,-30); ctx.lineTo(-18,-6); ctx.lineTo(-46,-6); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(36,-30); ctx.lineTo(18,-6); ctx.lineTo(46,-6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=PINK;
+  ctx.beginPath(); ctx.moveTo(-33,-23); ctx.lineTo(-23,-9); ctx.lineTo(-39,-9); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(33,-23); ctx.lineTo(23,-9); ctx.lineTo(39,-9); ctx.closePath(); ctx.fill();
+  // head (white base)
+  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(0,-6,35,30,0,0,7); ctx.fill();
+  // orange cap patches with a white blaze between
+  ctx.fillStyle=ORANGE;
+  ctx.beginPath(); ctx.ellipse(-18,-18,16,15,0,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(18,-18,16,15,0,0,7); ctx.fill();
+  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.moveTo(0,-34); ctx.lineTo(-8,-2); ctx.lineTo(8,-2); ctx.closePath(); ctx.fill();
+  // eyes (green with pupils + shine)
+  ctx.fillStyle=GREEN; ctx.beginPath(); ctx.ellipse(-13,-4,5.5,6.5,0,0,7); ctx.ellipse(13,-4,5.5,6.5,0,0,7); ctx.fill();
+  ctx.fillStyle=INK; ctx.beginPath(); ctx.ellipse(-13,-4,2.2,5,0,0,7); ctx.ellipse(13,-4,2.2,5,0,0,7); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-14.5,-6,1.3,0,7); ctx.arc(11.5,-6,1.3,0,7); ctx.fill();
+  // pink nose
+  ctx.fillStyle=PINK; ctx.beginPath(); ctx.moveTo(0,7); ctx.lineTo(-4.5,2); ctx.lineTo(4.5,2); ctx.closePath(); ctx.fill();
+  // mouth (cat smile)
+  ctx.strokeStyle=INK; ctx.lineWidth=1.6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,7); ctx.lineTo(0,11); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-4,11,4,0,Math.PI*0.6); ctx.stroke();
+  ctx.beginPath(); ctx.arc(4,11,4,Math.PI*0.4,Math.PI); ctx.stroke();
+  // whiskers
+  ctx.strokeStyle='rgba(120,90,60,.65)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-7,4); ctx.lineTo(-32,0); ctx.moveTo(-7,7); ctx.lineTo(-32,9);
+  ctx.moveTo(7,4); ctx.lineTo(32,0); ctx.moveTo(7,7); ctx.lineTo(32,9); ctx.stroke();
+  ctx.restore();
+}
+const CHEERS=['Go, %, go!','You got this, %!','Score it, %!','Come on, %!','Aim true, %!'];
+function drawCheer(text){
+  ctx.save(); ctx.font='bold 15px "Trebuchet MS",sans-serif'; ctx.textAlign='center';
+  const w=Math.max(90, ctx.measureText(text).width+24);
+  const bx=BALL_HOME.x+96, by=BALL_HOME.y-2;
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#e6b23a'; ctx.lineWidth=2;
+  roundRect(bx-w/2, by-18, w, 30, 12); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bx-w/2+18,by+10); ctx.lineTo(bx-w/2+2,by+22); ctx.lineTo(bx-w/2+30,by+11); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#5a3d1a'; ctx.fillText(text, bx, by+2); ctx.restore();
+}
+function drawBall(){
+  const r=ball.r*ball.scale; ctx.save(); ctx.translate(ball.x,ball.y);
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,r,0,7); ctx.fill();
+  ctx.strokeStyle='#222'; ctx.lineWidth=Math.max(1,r*0.12); ctx.stroke();
+  ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(0,0,r*0.34,0,7); ctx.fill(); ctx.restore();
+}
+function drawAim(){
+  if(!canKick()) return;
+  const dx=aim.x-ball.x, dy=aim.y-ball.y;
+  for(let i=1;i<=6;i++){ const t=i/7; ctx.globalAlpha=.5-t*0.4; ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(ball.x+dx*t,ball.y+dy*t,5-t*2,0,7); ctx.fill(); }
+  ctx.globalAlpha=1;
+  const pw=160,px=ball.x-pw/2,py=ball.y+34;
+  ctx.fillStyle='rgba(0,0,0,.35)'; roundRect(px,py,pw,12,6); ctx.fill();
+  const g=ctx.createLinearGradient(px,0,px+pw,0); g.addColorStop(0,'#7dd87d'); g.addColorStop(.5,'#f2c94c'); g.addColorStop(1,'#eb5757');
+  ctx.fillStyle=g; roundRect(px,py,pw*power/100,12,6); ctx.fill();
+}
+let staticBall={x:W/2+70,y:H/2+70,vx:0,vy:0,r:16,scale:1,spin:0};
+function render(){
+  ctx.clearRect(0,0,W,H); drawField(); drawGoal();
+  if(state==='penalty'){
+    drawKeeper(); drawAim();
+    if(kick!=='flying'){ drawPopo(BALL_HOME.x, BALL_HOME.y+40, 0.92);
+      drawCheer(CHEERS[cheerIdx%CHEERS.length].replace('%',playerName||'Champ')); }
+    if(ball) drawBall();
+  }else{
+    drawPopo(W/2, H/2+10, 1.15);
+    const b=ball; ball=staticBall; drawBall(); ball=b;
+  }
+  if(flash && flash.t>0){
+    ctx.globalAlpha=Math.min(1,flash.t); ctx.fillStyle=flash.color;
+    ctx.font='bold 46px "Trebuchet MS",sans-serif'; ctx.textAlign='center';
+    ctx.fillText(flash.msg, W/2, H/2-60); ctx.globalAlpha=1;
+  }
+}
+function loop(ts){
+  const dt=Math.min(0.05,(ts-lastTs)/1000)||0; lastTs=ts;
+  update(dt);
+  if(state==='quiz'||state==='penalty') updateHud();
+  if(flash) flash.t-=dt;
+  render(); requestAnimationFrame(loop);
+}
+
+/* ===================== Init ===================== */
+els.startDate.textContent=`Daily Challenge · Day #${dayNumber} · ${dateStr}`;
+els.day.textContent=dayNumber; els.best.textContent=best;
+if(playerName) els.nameInput.value=playerName;
+resetBall(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
