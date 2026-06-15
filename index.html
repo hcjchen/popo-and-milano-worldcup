@@ -71,7 +71,7 @@
         <div class="qtext">What's your name?</div>
         <input id="nameInput" class="nameField" maxlength="14" autocomplete="off" />
         <p style="margin:12px 0;font-size:14.5px;line-height:1.5">
-          Answer 5 World Cup questions. Each one you get right lets Popo take a penalty kick! ⚽
+          Answer 5 World Cup questions — harder ones score more! Each one you get right lets Popo take a penalty kick past Milano the keeper. ⚽
         </p>
         <button class="big" id="startBtn">Kick Off!</button>
       </div>
@@ -316,12 +316,13 @@ function dailyQuestions(){
 const GOAL = { x: W/2-150, y:70, w:300, h:90 };
 const BALL_HOME = { x: W/2, y: H-96 };
 const BEST_KEY='purinWCBest', NAME_KEY='purinWCName';
+const PTS={E:100,M:150,H:250}; // harder questions are worth more
 
 let state='idle', kick='ready';
-let quiz=[], qIndex=0, correctCount=0, totalGoals=0, results=[];
+let quiz=[], qIndex=0, correctCount=0, totalGoals=0, quizPoints=0, results=[];
 let answered=false, quizTime=10, penaltyTime=0;
 let ball, keeper, charging=false, power=0, aim={x:W/2,y:GOAL.y};
-let flash=null, lastTs=0, cheerIdx=0;
+let flash=null, lastTs=0, cheerIdx=0, kickAnimT=0;
 let playerName = localStorage.getItem(NAME_KEY) || '';
 let best = parseInt(localStorage.getItem(BEST_KEY)||'0',10) || 0;
 
@@ -348,14 +349,14 @@ function startGame(){
   playerName = (els.nameInput.value||'').trim().slice(0,14) || playerName || 'Champ';
   localStorage.setItem(NAME_KEY, playerName);
   quiz = dailyQuestions();
-  qIndex=0; correctCount=0; totalGoals=0; results=[];
+  qIndex=0; correctCount=0; totalGoals=0; quizPoints=0; results=[];
   resetBall(); showQuiz();
 }
 function showQuiz(){
   state='quiz'; answered=false; quizTime=10;
   const item=quiz[qIndex];
   const tier = item.d==='E'?'Easy':item.d==='M'?'Medium':'Hard';
-  els.qcat.textContent=`Q${qIndex+1} of 5 · ${item.c} · ${tier}`;
+  els.qcat.textContent=`Q${qIndex+1} of 5 · ${item.c} · ${tier} (${PTS[item.d]} pts)`;
   els.qtext.textContent=item.q;
   els.qfeedback.innerHTML='&nbsp;'; els.qtimerfill.style.width='100%'; els.qopts.innerHTML='';
   const rng=mulberry32(dayKey*131 + qIndex*7 + 3);
@@ -369,8 +370,8 @@ function revealCorrect(order){ [...els.qopts.children].forEach((b,i)=>{ b.disabl
 function answer(btn,isCorrect,order,item){
   if(answered) return; answered=true; revealCorrect(order);
   if(isCorrect){
-    correctCount++; results.push(true);
-    els.qfeedback.textContent='✅ Correct! '+item.f+'  (Penalty kick next!)';
+    correctCount++; quizPoints+=PTS[item.d]; results.push(true);
+    els.qfeedback.textContent=`✅ Correct! +${PTS[item.d]} pts. `+item.f+'  (Penalty kick next!)';
     updateHud(); setTimeout(startPenalty,2000);
   }else{
     btn.classList.add('wrong'); results.push(false);
@@ -396,24 +397,24 @@ function endPenalty(){ nextQuiz(); }
 function nextQuiz(){ qIndex++; if(qIndex>=5) endGame(); else showQuiz(); }
 function endGame(){
   state='gameover';
-  const score=correctCount*100 + totalGoals*50;
+  const score=quizPoints + totalGoals*50;
   if(score>best){ best=score; localStorage.setItem(BEST_KEY,String(best)); }
   els.resDay.textContent=dayNumber;
   els.resMarks.textContent=results.map(r=>r?'✅':'❌').join('');
   els.finalScore.textContent=score;
-  els.resCorrect.textContent=`🧠 Quiz: ${correctCount}/5 correct`;
-  els.resGoals.textContent=`⚽ Goals scored: ${totalGoals}`;
+  els.resCorrect.textContent=`🧠 Quiz: ${correctCount}/5 correct · ${quizPoints} pts`;
+  els.resGoals.textContent=`⚽ Goals: ${totalGoals} · ${totalGoals*50} pts`;
   let grade='Keep practising';
-  if(score>=650) grade='World Cup Legend! 🐱👑';
-  else if(score>=450) grade='Star Striker! 🌟';
-  else if(score>=250) grade='Solid squad player! 💪';
+  if(score>=850) grade='World Cup Legend! 🐱👑';
+  else if(score>=600) grade='Star Striker! 🌟';
+  else if(score>=350) grade='Solid squad player! 💪';
   els.resGrade.textContent=`${playerName}: ${grade}`;
   els.shareToast.innerHTML='&nbsp;';
   els.hint.textContent='Great game! Share your score, or play again.';
   show(els.resultOv); updateHud();
 }
 function shareText(){
-  const score=correctCount*100 + totalGoals*50;
+  const score=quizPoints + totalGoals*50;
   const marks=results.map(r=>r?'✅':'❌').join('');
   return `🐱⚽ ${playerName}'s Popo World Cup Quiz — Day #${dayNumber} (${dateStr})\n`+
          `${marks}  ${correctCount}/5\n`+
@@ -442,7 +443,7 @@ els.nameInput.addEventListener('keydown',e=>{ if(e.key==='Enter') startGame(); }
 function shoot(){
   const dx=aim.x-ball.x, dy=aim.y-ball.y, len=Math.hypot(dx,dy)||1;
   const speed=320+power*9;
-  ball.vx=dx/len*speed; ball.vy=dy/len*speed; ball.spin=(Math.random()-.5)*0.4; kick='flying';
+  ball.vx=dx/len*speed; ball.vy=dy/len*speed; ball.spin=(Math.random()-.5)*0.4; kickAnimT=0.35; kick='flying';
 }
 function resolveKick(goal,msg){
   if(goal){ totalGoals++; flash={msg,color:'#1f9d3a',t:1.0}; }
@@ -460,6 +461,7 @@ function update(dt){
   }
   if(state==='penalty'){
     penaltyTime=Math.max(0,penaltyTime-dt);
+    if(kickAnimT>0) kickAnimT=Math.max(0,kickAnimT-dt);
     if(charging && kick==='ready') power=Math.min(100,power+dt*80);
     if(kick==='flying'){
       ball.x+=ball.vx*dt; ball.y+=ball.vy*dt; ball.vx+=ball.spin*60*dt;
@@ -508,21 +510,42 @@ function drawGoal(){
   ctx.strokeStyle='#fff'; ctx.lineWidth=7; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(x,y+h); ctx.lineTo(x,y-30); ctx.lineTo(x+w,y-30); ctx.lineTo(x+w,y+h); ctx.stroke();
 }
+// Milano — Alier's tuxedo (black-and-white) cat, guarding the goal
 function drawKeeper(){
-  const k=keeper; ctx.save(); ctx.translate(k.x,k.y); ctx.rotate(k.lean);
-  ctx.fillStyle='#2b2f44'; roundRect(-k.w/2,-k.h/2,k.w,k.h,16); ctx.fill();
-  ctx.fillStyle='#fdfdfd'; roundRect(-k.w/2+10,-k.h/2+14,k.w-20,k.h-16,12); ctx.fill();
-  ctx.fillStyle='#ffcf3f'; const reach=keeper.diving?16:0;
-  ctx.beginPath(); ctx.arc(-k.w/2-reach,-6,9,0,7); ctx.arc(k.w/2+reach,-6,9,0,7); ctx.fill();
-  ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(-9,-k.h/2+12,3.2,0,7); ctx.arc(9,-k.h/2+12,3.2,0,7); ctx.fill();
+  const k=keeper, hw=k.w/2; ctx.save(); ctx.translate(k.x,k.y); ctx.rotate(k.lean);
+  const BLACK='#2b2b30', WHITE='#fafafa', PINK='#e79aa0', GLOVE='#ffcf3f', GREEN='#9cc06a';
+  // gloved paws (white legs + yellow keeper gloves) — reach out when diving
+  const reach=k.diving?18:5;
+  ctx.strokeStyle=WHITE; ctx.lineWidth=9; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-hw+6,6); ctx.lineTo(-hw-reach,1); ctx.moveTo(hw-6,6); ctx.lineTo(hw+reach,1); ctx.stroke();
+  ctx.fillStyle=GLOVE; ctx.beginPath(); ctx.arc(-hw-reach,-1,8,0,7); ctx.arc(hw+reach,-1,8,0,7); ctx.fill();
+  // body (black) fills the hitbox width
+  ctx.fillStyle=BLACK; roundRect(-hw,-6,k.w,40,14); ctx.fill();
+  // white chest/belly
+  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(0,18,hw*0.55,15,0,0,7); ctx.fill();
+  // head (black)
+  ctx.fillStyle=BLACK; ctx.beginPath(); ctx.arc(0,-19,17,0,7); ctx.fill();
+  // ears
+  ctx.beginPath(); ctx.moveTo(-15,-31); ctx.lineTo(-3,-20); ctx.lineTo(-18,-16); ctx.closePath();
+  ctx.moveTo(15,-31); ctx.lineTo(3,-20); ctx.lineTo(18,-16); ctx.closePath(); ctx.fill();
+  // white muzzle + face blaze
+  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(0,-12,9,7,0,0,7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0,-31); ctx.lineTo(-3.5,-15); ctx.lineTo(3.5,-15); ctx.closePath(); ctx.fill();
+  // eyes
+  ctx.fillStyle=GREEN; ctx.beginPath(); ctx.ellipse(-7,-21,3,3.6,0,0,7); ctx.ellipse(7,-21,3,3.6,0,0,7); ctx.fill();
+  ctx.fillStyle='#222'; ctx.beginPath(); ctx.ellipse(-7,-21,1.2,3,0,0,7); ctx.ellipse(7,-21,1.2,3,0,0,7); ctx.fill();
+  // nose
+  ctx.fillStyle=PINK; ctx.beginPath(); ctx.moveTo(0,-11); ctx.lineTo(-2.3,-13.6); ctx.lineTo(2.3,-13.6); ctx.closePath(); ctx.fill();
   ctx.restore();
 }
 // Popo — Alier's orange-and-white cat
-function drawPopo(x,y,s=1){
+function drawPopo(x,y,s=1,kickT=0){
+  const kp=Math.max(0,Math.min(1,kickT/0.35));
   ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
   const ORANGE='#e6913c', ORANGE_D='#cf7a28', WHITE='#fcf7ef', PINK='#e79aa0', INK='#4a3a2a', GREEN='#8fb95f';
   // shadow
   ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(0,56,48,11,0,0,7); ctx.fill();
+  ctx.rotate(-0.18*kp); // lean into the kick
   // curling orange tail
   ctx.strokeStyle=ORANGE; ctx.lineWidth=13; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(32,44); ctx.quadraticCurveTo(70,34,60,4); ctx.stroke();
@@ -562,6 +585,10 @@ function drawPopo(x,y,s=1){
   ctx.strokeStyle='rgba(120,90,60,.65)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(-7,4); ctx.lineTo(-32,0); ctx.moveTo(-7,7); ctx.lineTo(-32,9);
   ctx.moveTo(7,4); ctx.lineTo(32,0); ctx.moveTo(7,7); ctx.lineTo(32,9); ctx.stroke();
+  // kicking leg (white paw swings up-forward toward the ball)
+  if(kp>0){ ctx.strokeStyle=WHITE; ctx.lineWidth=12; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(2,46); ctx.lineTo(10+22*kp, 44-56*kp); ctx.stroke();
+    ctx.fillStyle=WHITE; ctx.beginPath(); ctx.arc(10+22*kp, 44-56*kp, 7, 0, 7); ctx.fill(); }
   ctx.restore();
 }
 const CHEERS=['Go, %, go!','You got this, %!','Score it, %!','Come on, %!','Aim true, %!'];
@@ -596,8 +623,8 @@ function render(){
   ctx.clearRect(0,0,W,H); drawField(); drawGoal();
   if(state==='penalty'){
     drawKeeper(); drawAim();
-    if(kick!=='flying'){ drawPopo(BALL_HOME.x, BALL_HOME.y+40, 0.92);
-      drawCheer(CHEERS[cheerIdx%CHEERS.length].replace('%',playerName||'Champ')); }
+    drawPopo(BALL_HOME.x, BALL_HOME.y+40, 0.92, kickAnimT);
+    if(kick==='ready') drawCheer(CHEERS[cheerIdx%CHEERS.length].replace('%',playerName||'Champ'));
     if(ball) drawBall();
   }else{
     drawPopo(W/2, H/2+10, 1.15);
