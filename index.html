@@ -322,7 +322,7 @@ let state='idle', kick='ready';
 let quiz=[], qIndex=0, correctCount=0, totalGoals=0, quizPoints=0, results=[];
 let answered=false, quizTime=10, penaltyTime=0;
 let ball, keeper, charging=false, power=0, aim={x:W/2,y:GOAL.y};
-let flash=null, lastTs=0, cheerIdx=0, kickAnimT=0;
+let flash=null, lastTs=0, cheerIdx=0, kickAnimT=0, flightT=0;
 let playerName = localStorage.getItem(NAME_KEY) || '';
 let best = parseInt(localStorage.getItem(BEST_KEY)||'0',10) || 0;
 
@@ -443,7 +443,10 @@ els.nameInput.addEventListener('keydown',e=>{ if(e.key==='Enter') startGame(); }
 function shoot(){
   const dx=aim.x-ball.x, dy=aim.y-ball.y, len=Math.hypot(dx,dy)||1;
   const speed=320+power*9;
-  ball.vx=dx/len*speed; ball.vy=dy/len*speed; ball.spin=(Math.random()-.5)*0.4; kickAnimT=0.35; kick='flying';
+  ball.vx=dx/len*speed; ball.vy=dy/len*speed;
+  // never let a shot go straight sideways/down — bias it goalward so it always resolves
+  if(ball.vy > -40) ball.vy = -40;
+  ball.spin=(Math.random()-.5)*0.4; kickAnimT=0.35; flightT=0; kick='flying';
 }
 function resolveKick(goal,msg){
   if(goal){ totalGoals++; flash={msg,color:'#1f9d3a',t:1.0}; }
@@ -477,6 +480,8 @@ function update(dt){
          Math.abs(ball.x-keeper.x)<keeper.w/2 + ball.r*ball.scale) return resolveKick(false,'Saved! 🧤');
       if(ball.y<=GOAL.y){ const inMouth=ball.x>GOAL.x && ball.x<GOAL.x+GOAL.w;
         return resolveKick(inMouth, inMouth?'GOAL! 🎉':'Missed! 😅'); }
+      flightT+=dt;
+      if(ball.y>H+30 || flightT>3) return resolveKick(false,'Missed! 😅'); // safety: ball left play
     }
     if(keeper.diving){
       const dx=keeper.targetX-keeper.x;
@@ -514,28 +519,37 @@ function drawGoal(){
 function drawKeeper(){
   const k=keeper, hw=k.w/2; ctx.save(); ctx.translate(k.x,k.y); ctx.rotate(k.lean);
   const BLACK='#2b2b30', WHITE='#fafafa', PINK='#e79aa0', GLOVE='#ffcf3f', GREEN='#9cc06a';
-  // gloved paws (white legs + yellow keeper gloves) — reach out when diving
-  const reach=k.diving?18:5;
-  ctx.strokeStyle=WHITE; ctx.lineWidth=9; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-hw+6,6); ctx.lineTo(-hw-reach,1); ctx.moveTo(hw-6,6); ctx.lineTo(hw+reach,1); ctx.stroke();
-  ctx.fillStyle=GLOVE; ctx.beginPath(); ctx.arc(-hw-reach,-1,8,0,7); ctx.arc(hw+reach,-1,8,0,7); ctx.fill();
-  // body (black) fills the hitbox width
-  ctx.fillStyle=BLACK; roundRect(-hw,-6,k.w,40,14); ctx.fill();
+  // tail (black with white tip) curling beside the body
+  ctx.strokeStyle=BLACK; ctx.lineWidth=9; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(hw-4,24); ctx.quadraticCurveTo(hw+20,16,hw+8,-6); ctx.stroke();
+  ctx.strokeStyle=WHITE; ctx.lineWidth=9; ctx.beginPath(); ctx.moveTo(hw+11,2); ctx.lineTo(hw+8,-6); ctx.stroke();
+  // rounded sitting body (black)
+  ctx.fillStyle=BLACK; ctx.beginPath(); ctx.ellipse(0,18,hw,22,0,0,7); ctx.fill();
   // white chest/belly
-  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(0,18,hw*0.55,15,0,0,7); ctx.fill();
+  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(0,22,hw*0.52,16,0,0,7); ctx.fill();
+  // front legs + keeper gloves (spread out when diving)
+  const reach=k.diving?14:4;
+  ctx.strokeStyle=BLACK; ctx.lineWidth=8; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-hw*0.45,20); ctx.lineTo(-hw*0.55-reach,36);
+                   ctx.moveTo(hw*0.45,20); ctx.lineTo(hw*0.55+reach,36); ctx.stroke();
+  ctx.fillStyle=GLOVE; ctx.beginPath(); ctx.arc(-hw*0.55-reach,37,7,0,7); ctx.arc(hw*0.55+reach,37,7,0,7); ctx.fill();
   // head (black)
-  ctx.fillStyle=BLACK; ctx.beginPath(); ctx.arc(0,-19,17,0,7); ctx.fill();
-  // ears
-  ctx.beginPath(); ctx.moveTo(-15,-31); ctx.lineTo(-3,-20); ctx.lineTo(-18,-16); ctx.closePath();
-  ctx.moveTo(15,-31); ctx.lineTo(3,-20); ctx.lineTo(18,-16); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=BLACK; ctx.beginPath(); ctx.arc(0,-14,16,0,7); ctx.fill();
+  // ears (triangles)
+  ctx.beginPath(); ctx.moveTo(-15,-27); ctx.lineTo(-3,-15); ctx.lineTo(-18,-12); ctx.closePath();
+  ctx.moveTo(15,-27); ctx.lineTo(3,-15); ctx.lineTo(18,-12); ctx.closePath(); ctx.fill();
   // white muzzle + face blaze
-  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(0,-12,9,7,0,0,7); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(0,-31); ctx.lineTo(-3.5,-15); ctx.lineTo(3.5,-15); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(0,-7,9,7,0,0,7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0,-26); ctx.lineTo(-3.5,-10); ctx.lineTo(3.5,-10); ctx.closePath(); ctx.fill();
   // eyes
-  ctx.fillStyle=GREEN; ctx.beginPath(); ctx.ellipse(-7,-21,3,3.6,0,0,7); ctx.ellipse(7,-21,3,3.6,0,0,7); ctx.fill();
-  ctx.fillStyle='#222'; ctx.beginPath(); ctx.ellipse(-7,-21,1.2,3,0,0,7); ctx.ellipse(7,-21,1.2,3,0,0,7); ctx.fill();
+  ctx.fillStyle=GREEN; ctx.beginPath(); ctx.ellipse(-6,-16,3,3.6,0,0,7); ctx.ellipse(6,-16,3,3.6,0,0,7); ctx.fill();
+  ctx.fillStyle='#222'; ctx.beginPath(); ctx.ellipse(-6,-16,1.2,3,0,0,7); ctx.ellipse(6,-16,1.2,3,0,0,7); ctx.fill();
   // nose
-  ctx.fillStyle=PINK; ctx.beginPath(); ctx.moveTo(0,-11); ctx.lineTo(-2.3,-13.6); ctx.lineTo(2.3,-13.6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=PINK; ctx.beginPath(); ctx.moveTo(0,-6); ctx.lineTo(-2.3,-8.5); ctx.lineTo(2.3,-8.5); ctx.closePath(); ctx.fill();
+  // whiskers
+  ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-5,-5); ctx.lineTo(-20,-7); ctx.moveTo(-5,-3); ctx.lineTo(-20,-2);
+  ctx.moveTo(5,-5); ctx.lineTo(20,-7); ctx.moveTo(5,-3); ctx.lineTo(20,-2); ctx.stroke();
   ctx.restore();
 }
 // Popo — Alier's orange-and-white cat
