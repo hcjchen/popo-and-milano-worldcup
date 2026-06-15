@@ -45,7 +45,8 @@
   .big.green { background:#2f9d44; box-shadow:0 4px 0 #237a34; }
   .big:active { transform:translateY(2px); box-shadow:0 2px 0 #b9731c; }
   .nameField { font:inherit; font-size:18px; font-weight:bold; text-align:center; padding:10px 14px;
-    border:2px solid #e6b23a; border-radius:12px; width:min(280px,80%); color:#5a3d1a; }
+    border:2px solid #e6b23a; border-radius:12px; width:min(220px,60%); color:#5a3d1a; }
+  .numField { width:64px; }
   .result-line { font-size:17px; margin:5px 0; }
   .marks { font-size:26px; letter-spacing:3px; margin:6px 0; }
   .score-big { font-size:40px; font-weight:bold; color:#e6932b; }
@@ -54,7 +55,6 @@
 <body>
   <h1>🐱 Popo <span>World Cup Daily Quiz Shootout</span> ⚽</h1>
   <div id="hud">
-    <div class="pill">Day <span id="day">–</span></div>
     <div class="pill">Q <span id="qnum">0</span>/5</div>
     <div class="pill">✔ <span id="correct">0</span></div>
     <div class="pill">⚽ <span id="goals">0</span></div>
@@ -68,8 +68,11 @@
     <div id="startOv" class="overlay show">
       <div class="card">
         <div class="cat" id="startDate"></div>
-        <div class="qtext">What's your name?</div>
-        <input id="nameInput" class="nameField" maxlength="14" autocomplete="off" />
+        <div class="qtext">What's your name &amp; squad number?</div>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <input id="nameInput" class="nameField" maxlength="14" autocomplete="off" placeholder="name" />
+          <input id="numInput" class="nameField numField" maxlength="2" inputmode="numeric" autocomplete="off" placeholder="#" />
+        </div>
         <p style="margin:12px 0;font-size:14.5px;line-height:1.5">
           Answer 5 World Cup questions — harder ones score more! Each one you get right lets Popo take a penalty kick past Milano the keeper. ⚽
         </p>
@@ -89,7 +92,8 @@
 
     <div id="resultOv" class="overlay">
       <div class="card">
-        <div class="cat">Full time 🏆 · Day <span id="resDay"></span></div>
+        <div class="cat">Full time 🏆</div>
+        <canvas id="celebCanvas" width="320" height="112" style="display:block;margin:6px auto 2px;"></canvas>
         <div class="marks" id="resMarks"></div>
         <div class="score-big" id="finalScore">0</div>
         <div class="result-line" id="resCorrect"></div>
@@ -107,17 +111,18 @@
   <div id="hint">Type your name to begin today's challenge.</div>
 
 <script>
-const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const cv = document.getElementById('game'); let ctx = cv.getContext('2d');
 const W = cv.width, H = cv.height;
 const $ = id => document.getElementById(id);
 const els = {
-  day:$('day'), qnum:$('qnum'), correct:$('correct'), goals:$('goals'), time:$('time'), best:$('best'),
-  hint:$('hint'), startOv:$('startOv'), startBtn:$('startBtn'), startDate:$('startDate'), nameInput:$('nameInput'),
+  qnum:$('qnum'), correct:$('correct'), goals:$('goals'), time:$('time'), best:$('best'),
+  hint:$('hint'), startOv:$('startOv'), startBtn:$('startBtn'), startDate:$('startDate'), nameInput:$('nameInput'), numInput:$('numInput'),
   quizOv:$('quizOv'), qcat:$('qcat'), qtext:$('qtext'), qopts:$('qopts'), qfeedback:$('qfeedback'), qtimerfill:$('qtimerfill'),
-  resultOv:$('resultOv'), resDay:$('resDay'), resMarks:$('resMarks'), finalScore:$('finalScore'),
+  resultOv:$('resultOv'), resMarks:$('resMarks'), finalScore:$('finalScore'),
   resCorrect:$('resCorrect'), resGoals:$('resGoals'), resGrade:$('resGrade'),
   shareBtn:$('shareBtn'), againBtn:$('againBtn'), shareToast:$('shareToast'),
 };
+const celebCtx = $('celebCanvas').getContext('2d');
 
 /* ===================== Question bank (d: E=easy, M=medium, H=hard) ===================== */
 const BANK = [
@@ -315,7 +320,7 @@ function dailyQuestions(){
 /* ===================== Game state ===================== */
 const GOAL = { x: W/2-150, y:70, w:300, h:90 };
 const BALL_HOME = { x: W/2, y: H-96 };
-const BEST_KEY='purinWCBest', NAME_KEY='purinWCName';
+const BEST_KEY='purinWCBest', NAME_KEY='purinWCName', NUM_KEY='purinWCNum';
 const PTS={E:100,M:150,H:250}; // harder questions are worth more
 
 let state='idle', kick='ready';
@@ -324,20 +329,22 @@ let answered=false, quizTime=10, penaltyTime=0;
 let ball, keeper, charging=false, power=0, aim={x:W/2,y:GOAL.y};
 let flash=null, lastTs=0, cheerIdx=0, kickAnimT=0, flightT=0;
 let playerName = localStorage.getItem(NAME_KEY) || '';
+let playerNum = localStorage.getItem(NUM_KEY) || '';
+const displayName = () => playerNum ? `${playerName} #${playerNum}` : playerName;
 let best = parseInt(localStorage.getItem(BEST_KEY)||'0',10) || 0;
 
-// gentler difficulty curve
-function effDiff(){ return Math.min(0.8, qIndex*0.11 + totalGoals*0.02); }
+// difficulty ramps up sharply for the 4th and 5th questions
+const DIFF_BY_Q=[0.05, 0.18, 0.34, 0.62, 0.90];
+function effDiff(){ return Math.min(0.96, (DIFF_BY_Q[qIndex] ?? 0.4) + totalGoals*0.02); }
 function resetBall(){ ball={x:BALL_HOME.x,y:BALL_HOME.y,vx:0,vy:0,r:14,scale:1,spin:0}; }
 function newKeeper(){
   const d=effDiff();
-  keeper={ x:W/2, y:GOAL.y+GOAL.h-18, w:44+d*22, h:70, dir:1, speed:80+d*80,
+  keeper={ x:W/2, y:GOAL.y+GOAL.h-18, w:42+d*40, h:70, dir:1, speed:90+d*130,
            diving:false, targetX:W/2, lean:0 };
   cheerIdx++;
 }
 
 function updateHud(){
-  els.day.textContent=dayNumber;
   els.qnum.textContent = state==='gameover'?5:Math.min(qIndex+1,5);
   els.correct.textContent=correctCount; els.goals.textContent=totalGoals; els.best.textContent=best;
   els.time.textContent = state==='quiz'?Math.ceil(quizTime)+'s' : state==='penalty'?Math.ceil(penaltyTime)+'s' : '–';
@@ -347,13 +354,14 @@ function show(ov){ [els.startOv,els.quizOv,els.resultOv].forEach(o=>o.classList.
 /* ===================== Flow ===================== */
 function startGame(){
   playerName = (els.nameInput.value||'').trim().slice(0,14) || playerName || 'Champ';
-  localStorage.setItem(NAME_KEY, playerName);
+  playerNum = (els.numInput.value||'').replace(/[^0-9]/g,'').slice(0,2);
+  localStorage.setItem(NAME_KEY, playerName); localStorage.setItem(NUM_KEY, playerNum);
   quiz = dailyQuestions();
   qIndex=0; correctCount=0; totalGoals=0; quizPoints=0; results=[];
   resetBall(); showQuiz();
 }
 function showQuiz(){
-  state='quiz'; answered=false; quizTime=10;
+  state='quiz'; answered=false; quizTime=5;
   const item=quiz[qIndex];
   const tier = item.d==='E'?'Easy':item.d==='M'?'Medium':'Hard';
   els.qcat.textContent=`Q${qIndex+1} of 5 · ${item.c} · ${tier} (${PTS[item.d]} pts)`;
@@ -363,7 +371,7 @@ function showQuiz(){
   const order=shuffleRng(item.o.map((t,i)=>({t,correct:i===item.a})), rng);
   order.forEach(opt=>{ const b=document.createElement('button'); b.className='opt'; b.textContent=opt.t;
     b.onclick=()=>answer(b,opt.correct,order,item); els.qopts.appendChild(b); });
-  els.hint.textContent='Pick the right answer within 10 seconds!';
+  els.hint.textContent='Pick the right answer within 5 seconds!';
   show(els.quizOv); updateHud();
 }
 function revealCorrect(order){ [...els.qopts.children].forEach((b,i)=>{ b.disabled=true; if(order[i].correct) b.classList.add('correct'); }); }
@@ -389,7 +397,7 @@ function timeoutAnswer(){
 }
 function startPenalty(){
   show(null); state='penalty'; kick='ready';
-  penaltyTime=10; power=0; charging=false; resetBall(); newKeeper();
+  penaltyTime=5; power=0; charging=false; resetBall(); newKeeper();
   els.hint.textContent='Hold to charge, release to shoot — go, '+playerName+'!';
   updateHud();
 }
@@ -399,7 +407,6 @@ function endGame(){
   state='gameover';
   const score=quizPoints + totalGoals*50;
   if(score>best){ best=score; localStorage.setItem(BEST_KEY,String(best)); }
-  els.resDay.textContent=dayNumber;
   els.resMarks.textContent=results.map(r=>r?'✅':'❌').join('');
   els.finalScore.textContent=score;
   els.resCorrect.textContent=`🧠 Quiz: ${correctCount}/5 correct · ${quizPoints} pts`;
@@ -408,15 +415,22 @@ function endGame(){
   if(score>=850) grade='World Cup Legend! 🐱👑';
   else if(score>=600) grade='Star Striker! 🌟';
   else if(score>=350) grade='Solid squad player! 💪';
-  els.resGrade.textContent=`${playerName}: ${grade}`;
+  els.resGrade.textContent=`${displayName()}: ${grade}`;
   els.shareToast.innerHTML='&nbsp;';
   els.hint.textContent='Great game! Share your score, or play again.';
   show(els.resultOv); updateHud();
+  // celebration: Popo & Milano with the ball, drawn on the scoreboard
+  const mc=ctx; ctx=celebCtx;
+  ctx.clearRect(0,0,320,112);
+  drawPopo(62,52,0.82);
+  const bb=ball; ball={x:160,y:62,vx:0,vy:0,r:15,scale:1,spin:0}; drawBall(); ball=bb;
+  drawMilano(252,56,0.98);
+  ctx=mc;
 }
 function shareText(){
   const score=quizPoints + totalGoals*50;
   const marks=results.map(r=>r?'✅':'❌').join('');
-  return `🐱⚽ ${playerName}'s Popo World Cup Quiz — Day #${dayNumber} (${dateStr})\n`+
+  return `🐱⚽ ${displayName()}'s Popo & Milano World Cup Quiz\n`+
          `${marks}  ${correctCount}/5\n`+
          `⚽ Goals: ${totalGoals}   🏆 Score: ${score}\nCan you beat me?`;
 }
@@ -459,7 +473,7 @@ function resolveKick(goal,msg){
 /* ===================== Update ===================== */
 function update(dt){
   if(state==='quiz' && !answered){
-    quizTime=Math.max(0,quizTime-dt); els.qtimerfill.style.width=(quizTime/10*100)+'%';
+    quizTime=Math.max(0,quizTime-dt); els.qtimerfill.style.width=(quizTime/5*100)+'%';
     if(quizTime<=0) timeoutAnswer();
   }
   if(state==='penalty'){
@@ -472,7 +486,7 @@ function update(dt){
       if(ball.x<ball.r||ball.x>W-ball.r){ ball.vx*=-0.7; ball.x=Math.max(ball.r,Math.min(W-ball.r,ball.x)); }
       if(!keeper.diving && ball.y<GOAL.y+150 && ball.vy<0){
         const t=(ball.y-GOAL.y)/(-ball.vy); let px=ball.x+ball.vx*t;
-        const err=(1-effDiff())*300+90;   // weaker keeper: large aiming error
+        const err=(1-effDiff())*260+35;   // lower error on later (harder) rounds
         keeper.targetX=Math.max(GOAL.x+keeper.w/2, Math.min(GOAL.x+GOAL.w-keeper.w/2, px+(Math.random()*2-1)*err));
         keeper.diving=true;
       }
@@ -485,7 +499,8 @@ function update(dt){
     }
     if(keeper.diving){
       const dx=keeper.targetX-keeper.x;
-      keeper.x += Math.sign(dx)*Math.min(Math.abs(dx), 700*dt);   // slower dive reach
+      const ds=560 + effDiff()*700;   // dives faster on later (harder) rounds
+      keeper.x += Math.sign(dx)*Math.min(Math.abs(dx), ds*dt);
       keeper.lean=Math.max(-0.55,Math.min(0.55,dx*0.012));
     } else if(kick!=='resolve'){
       keeper.x += keeper.dir*keeper.speed*dt;
@@ -516,8 +531,7 @@ function drawGoal(){
   ctx.beginPath(); ctx.moveTo(x,y+h); ctx.lineTo(x,y-30); ctx.lineTo(x+w,y-30); ctx.lineTo(x+w,y+h); ctx.stroke();
 }
 // Milano — Alier's tuxedo (black-and-white) cat, guarding the goal
-function drawKeeper(){
-  const k=keeper, hw=k.w/2; ctx.save(); ctx.translate(k.x,k.y); ctx.rotate(k.lean);
+function drawMilanoShape(hw, diving){
   const BLACK='#2b2b30', WHITE='#fafafa', PINK='#e79aa0', GLOVE='#ffcf3f', GREEN='#9cc06a';
   // tail (black with white tip) curling beside the body
   ctx.strokeStyle=BLACK; ctx.lineWidth=9; ctx.lineCap='round';
@@ -528,7 +542,7 @@ function drawKeeper(){
   // white chest/belly
   ctx.fillStyle=WHITE; ctx.beginPath(); ctx.ellipse(0,22,hw*0.52,16,0,0,7); ctx.fill();
   // front legs + keeper gloves (spread out when diving)
-  const reach=k.diving?14:4;
+  const reach=diving?14:4;
   ctx.strokeStyle=BLACK; ctx.lineWidth=8; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(-hw*0.45,20); ctx.lineTo(-hw*0.55-reach,36);
                    ctx.moveTo(hw*0.45,20); ctx.lineTo(hw*0.55+reach,36); ctx.stroke();
@@ -550,8 +564,11 @@ function drawKeeper(){
   ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(-5,-5); ctx.lineTo(-20,-7); ctx.moveTo(-5,-3); ctx.lineTo(-20,-2);
   ctx.moveTo(5,-5); ctx.lineTo(20,-7); ctx.moveTo(5,-3); ctx.lineTo(20,-2); ctx.stroke();
-  ctx.restore();
 }
+function drawKeeper(){ const k=keeper; ctx.save(); ctx.translate(k.x,k.y); ctx.rotate(k.lean); drawMilanoShape(k.w/2, k.diving); ctx.restore(); }
+function drawMilano(x,y,s=1){ ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(0,46,40,10,0,0,7); ctx.fill();
+  drawMilanoShape(30,false); ctx.restore(); }
 // Popo — Alier's orange-and-white cat
 function drawPopo(x,y,s=1,kickT=0){
   const kp=Math.max(0,Math.min(1,kickT/0.35));
@@ -617,9 +634,26 @@ function drawCheer(text){
 }
 function drawBall(){
   const r=ball.r*ball.scale; ctx.save(); ctx.translate(ball.x,ball.y);
-  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,r,0,7); ctx.fill();
-  ctx.strokeStyle='#222'; ctx.lineWidth=Math.max(1,r*0.12); ctx.stroke();
-  ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(0,0,r*0.34,0,7); ctx.fill(); ctx.restore();
+  // white sphere with soft 3D shading
+  ctx.beginPath(); ctx.arc(0,0,r,0,7); ctx.save(); ctx.clip();
+  const g=ctx.createRadialGradient(-r*0.35,-r*0.4,r*0.1,0,0,r);
+  g.addColorStop(0,'#ffffff'); g.addColorStop(1,'#dde2e8');
+  ctx.fillStyle=g; ctx.fillRect(-r,-r,2*r,2*r);
+  // classic black panels (Telstar-style)
+  const pent=(cx,cy,rad,rot)=>{ ctx.beginPath();
+    for(let i=0;i<5;i++){ const a=rot+i*2*Math.PI/5, px=cx+Math.cos(a)*rad, py=cy+Math.sin(a)*rad;
+      i?ctx.lineTo(px,py):ctx.moveTo(px,py);} ctx.closePath(); ctx.fill(); };
+  ctx.fillStyle='#232327'; pent(0,0,r*0.36,-Math.PI/2);
+  ctx.strokeStyle='#2b2b2f'; ctx.lineWidth=Math.max(1,r*0.06);
+  for(let i=0;i<5;i++){ const a=-Math.PI/2+i*2*Math.PI/5;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a)*r*0.36,Math.sin(a)*r*0.36); ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r); ctx.stroke(); }
+  ctx.fillStyle='#232327';
+  for(let i=0;i<5;i++){ const a=-Math.PI/2+Math.PI/5+i*2*Math.PI/5;
+    pent(Math.cos(a)*r*0.92, Math.sin(a)*r*0.92, r*0.22, a+Math.PI/5); }
+  ctx.restore(); // end clip
+  ctx.strokeStyle='#222'; ctx.lineWidth=Math.max(1,r*0.08);
+  ctx.beginPath(); ctx.arc(0,0,r,0,7); ctx.stroke();
+  ctx.restore();
 }
 function drawAim(){
   if(!canKick()) return;
@@ -659,9 +693,10 @@ function loop(ts){
 }
 
 /* ===================== Init ===================== */
-els.startDate.textContent=`Daily Challenge · Day #${dayNumber} · ${dateStr}`;
-els.day.textContent=dayNumber; els.best.textContent=best;
+els.startDate.textContent=`Daily Challenge · ${dateStr}`;
+els.best.textContent=best;
 if(playerName) els.nameInput.value=playerName;
+if(playerNum) els.numInput.value=playerNum;
 resetBall(); requestAnimationFrame(loop);
 </script>
 </body>
