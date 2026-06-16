@@ -21,11 +21,13 @@
   canvas { width:100%; display:block; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.18); cursor:crosshair; touch-action:none; background:#3fa34d; }
   #hint { font-size:14px; opacity:.85; min-height:20px; text-align:center; }
 
-  .overlay { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
-    gap:12px; padding:18px; border-radius:16px; text-align:center; background:rgba(20,30,40,.62); backdrop-filter:blur(3px); color:#fff; }
+  /* Overlays are full-window centered modals (desktop + mobile) so the card never
+     overlaps the hint line below the canvas. Tall cards scroll inside the window. */
+  .overlay { position:fixed; inset:0; z-index:50; display:none; flex-direction:column; align-items:center; justify-content:center;
+    gap:12px; padding:18px; text-align:center; background:rgba(20,30,40,.66); backdrop-filter:blur(3px); color:#fff; overflow-y:auto; }
   .overlay.show { display:flex; }
   .card { background:#fff8e6; color:#5a3d1a; border:3px solid #f0c14b; border-radius:18px;
-    padding:18px; width:min(580px,94%); box-shadow:0 8px 24px rgba(0,0,0,.25); }
+    padding:18px; width:min(580px,94%); max-height:94vh; overflow-y:auto; box-shadow:0 8px 24px rgba(0,0,0,.25); }
   .cat { font-size:12px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; color:#e6932b; }
   .qtext { font-size:clamp(16px,2.3vw,21px); font-weight:bold; margin:8px 0 12px; }
   .opts { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
@@ -36,8 +38,7 @@
   .opt.correct { background:#46c95f; border-color:#2f9d44; color:#fff; }
   .opt.wrong   { background:#eb5757; border-color:#c0392b; color:#fff; }
   .opt:disabled { cursor:default; }
-  #qtimer { height:8px; background:#eadfae; border-radius:6px; margin:12px 0 4px; overflow:hidden; }
-  #qtimerfill { height:100%; width:100%; background:linear-gradient(90deg,#46c95f,#f2c94c,#eb5757); transition:width .12s linear; }
+  #qtimer { display:none; }
   .toast { font-size:13.5px; min-height:18px; margin-top:8px; line-height:1.35; }
   .big { font:inherit; font-weight:bold; font-size:17px; padding:11px 24px; border:none; cursor:pointer;
     background:#e6932b; color:#fff; border-radius:999px; box-shadow:0 4px 0 #b9731c; margin:4px; }
@@ -50,11 +51,8 @@
   .result-line { font-size:17px; margin:5px 0; }
   .marks { font-size:26px; letter-spacing:3px; margin:6px 0; }
   .score-big { font-size:40px; font-weight:bold; color:#e6932b; }
-  /* On phones the canvas is short, so let overlays fill the screen (centered modal)
-     and scroll if needed — keeps the card from overlapping the hint line below. */
   @media (max-width:640px){
-    .overlay { position:fixed; z-index:50; overflow-y:auto; padding:14px; }
-    .card { max-height:94vh; overflow-y:auto; }
+    .overlay { padding:14px; }
     .qtext { font-size:18px; }
     #hint { padding:0 10px; }
   }
@@ -355,7 +353,7 @@ function newKeeper(){
 function updateHud(){
   els.qnum.textContent = state==='gameover'?5:Math.min(qIndex+1,5);
   els.correct.textContent=correctCount; els.goals.textContent=totalGoals; els.best.textContent=best;
-  els.time.textContent = state==='quiz'?Math.ceil(quizTime)+'s' : state==='penalty'?Math.ceil(penaltyTime)+'s' : '–';
+  els.time.textContent = state==='penalty'?Math.ceil(penaltyTime)+'s' : '–';
 }
 function show(ov){ [els.startOv,els.quizOv,els.resultOv].forEach(o=>o.classList.remove('show')); if(ov) ov.classList.add('show'); }
 
@@ -369,17 +367,17 @@ function startGame(){
   resetBall(); showQuiz();
 }
 function showQuiz(){
-  state='quiz'; answered=false; quizTime=5;
+  state='quiz'; answered=false;
   const item=quiz[qIndex];
   const tier = item.d==='E'?'Easy':item.d==='M'?'Medium':'Hard';
   els.qcat.textContent=`Q${qIndex+1} of 5 · ${item.c} · ${tier} (${PTS[item.d]} pts)`;
   els.qtext.textContent=item.q;
-  els.qfeedback.innerHTML='&nbsp;'; els.qtimerfill.style.width='100%'; els.qopts.innerHTML='';
+  els.qfeedback.innerHTML='&nbsp;'; els.qopts.innerHTML='';
   const rng=mulberry32(dayKey*131 + qIndex*7 + 3);
   const order=shuffleRng(item.o.map((t,i)=>({t,correct:i===item.a})), rng);
   order.forEach(opt=>{ const b=document.createElement('button'); b.className='opt'; b.textContent=opt.t;
     b.onclick=()=>answer(b,opt.correct,order,item); els.qopts.appendChild(b); });
-  els.hint.textContent='Pick the right answer within 5 seconds!';
+  els.hint.textContent='Take your time — pick the right answer!';
   show(els.quizOv); updateHud();
 }
 function revealCorrect(order){ [...els.qopts.children].forEach((b,i)=>{ b.disabled=true; if(order[i].correct) b.classList.add('correct'); }); }
@@ -425,7 +423,7 @@ function endGame(){
   else if(score>=350) grade='Solid squad player! 💪';
   els.resGrade.textContent=`${displayName()}: ${grade}`;
   els.shareToast.innerHTML='&nbsp;';
-  els.hint.textContent='Great game! Share your score, or play again.';
+  els.hint.textContent='Great game! Tap Share to copy your score, or play again.';
   show(els.resultOv); updateHud();
   // celebration: Popo & Milano with the ball, drawn on the scoreboard
   const mc=ctx; ctx=celebCtx;
@@ -435,18 +433,30 @@ function endGame(){
   drawMilano(252,56,0.98);
   ctx=mc;
 }
+const GAME_URL='https://hcjchen.github.io/popo-and-milano-worldcup/';
 function shareText(){
   const score=quizPoints + totalGoals*50;
   const marks=results.map(r=>r?'✅':'❌').join('');
   return `🐱⚽ ${displayName()}'s Popo & Milano World Cup Quiz\n`+
          `${marks}  ${correctCount}/5\n`+
-         `⚽ Goals: ${totalGoals}   🏆 Score: ${score}\nCan you beat me?`;
+         `⚽ Goals: ${totalGoals}   🏆 Score: ${score}\n`+
+         `Can you beat me? Play here:\n${GAME_URL}`;
 }
+function fallbackCopy(text){
+  try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.top='-1000px'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select(); const ok=document.execCommand('copy'); document.body.removeChild(ta); return ok;
+  }catch(e){ return false; }
+}
+// "Share" copies the score + game link to the clipboard so it can be pasted anywhere (Teams, chat, etc.)
 async function doShare(){
   const text=shareText();
-  try{ if(navigator.share){ await navigator.share({title:"Popo & Milano's World Cup Quiz", text}); els.shareToast.textContent='Shared! 🎉'; return; } }
-  catch(e){ return; }
-  els.shareToast.textContent='Sharing isn’t available on this device.';
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+      els.shareToast.textContent='Copied! Paste it to your friends 📋'; return;
+    }
+  }catch(e){ /* fall through to fallback */ }
+  els.shareToast.textContent = fallbackCopy(text) ? 'Copied! Paste it to your friends 📋' : 'Could not copy — please copy the link manually.';
 }
 
 /* ===================== Input ===================== */
@@ -480,10 +490,7 @@ function resolveKick(goal,msg){
 
 /* ===================== Update ===================== */
 function update(dt){
-  if(state==='quiz' && !answered){
-    quizTime=Math.max(0,quizTime-dt); els.qtimerfill.style.width=(quizTime/5*100)+'%';
-    if(quizTime<=0) timeoutAnswer();
-  }
+  // questions are untimed now — players answer at their own pace
   if(state==='penalty'){
     penaltyTime=Math.max(0,penaltyTime-dt);
     if(kickAnimT>0) kickAnimT=Math.max(0,kickAnimT-dt);
