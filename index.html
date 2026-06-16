@@ -386,11 +386,11 @@ function answer(btn,isCorrect,order,item){
   if(isCorrect){
     correctCount++; quizPoints+=PTS[item.d]; results.push(true);
     els.qfeedback.textContent=`✅ Correct! +${PTS[item.d]} pts. `+item.f+'  (Penalty kick next!)';
-    updateHud(); setTimeout(startPenalty,2000);
+    updateHud(); setTimeout(startPenalty,6000);
   }else{
     btn.classList.add('wrong'); results.push(false);
     els.qfeedback.textContent='❌ Nope. '+item.f;
-    setTimeout(nextQuiz,2400);
+    setTimeout(nextQuiz,6000);
   }
 }
 function timeoutAnswer(){
@@ -399,7 +399,7 @@ function timeoutAnswer(){
   [...els.qopts.children].forEach(b=>{ b.disabled=true; if(b.textContent===item.o[item.a]) b.classList.add('correct'); });
   results.push(false);
   els.qfeedback.textContent="⏰ Time's up! "+item.f;
-  setTimeout(nextQuiz,2400);
+  setTimeout(nextQuiz,6000);
 }
 function startPenalty(){
   show(null); state='penalty'; kick='ready';
