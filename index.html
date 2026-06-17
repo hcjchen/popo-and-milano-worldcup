@@ -335,10 +335,17 @@ function dailyQuestions(){
   const pools = { E:shuffleRng(BANK.filter(q=>q.d==='E'),rng),
                   M:shuffleRng(BANK.filter(q=>q.d==='M'),rng),
                   H:shuffleRng(BANK.filter(q=>q.d==='H'),rng) };
-  // every day: easy, easy, medium, medium, hard
+  // every day: easy, easy, medium, medium, hard — and no two questions share a category
+  // (so the two medium slots can't both be team-nickname questions, etc.)
   const tmpl = ['E','E','M','M','H'];
-  const idx = {E:0,M:0,H:0};
-  return tmpl.map(t => pools[t][idx[t]++]);
+  const picks=[], usedCat=new Set(), usedQ=new Set();
+  for(const t of tmpl){
+    const pool=pools[t];
+    let q = pool.find(x=>!usedQ.has(x.q) && !usedCat.has(x.c))  // prefer an unused category
+         || pool.find(x=>!usedQ.has(x.q));                       // fallback: any unused question
+    picks.push(q); usedQ.add(q.q); usedCat.add(q.c);
+  }
+  return picks;
 }
 
 /* ===================== Game state ===================== */
@@ -489,8 +496,8 @@ function onUp(e){ if(!canKick()||!charging) return; e.preventDefault(); charging
 cv.addEventListener('mousemove',onMove); cv.addEventListener('mousedown',onDown); window.addEventListener('mouseup',onUp);
 cv.addEventListener('touchmove',e=>{onMove(e); if(canKick()) e.preventDefault();},{passive:false});
 cv.addEventListener('touchstart',onDown,{passive:false}); window.addEventListener('touchend',onUp,{passive:false});
-// Opens the live World Cup group standings (always current/accurate). Change this URL to FIFA/ESPN if preferred.
-const STANDINGS_URL='https://www.google.com/search?q=fifa+world+cup+2026+group+standings';
+// Opens the live World Cup group standings (always current/accurate).
+const STANDINGS_URL='https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/standings';
 els.startBtn.onclick=startGame; els.againBtn.onclick=startGame; els.shareBtn.onclick=doShare;
 els.standBtn.onclick=()=>window.open(STANDINGS_URL,'_blank','noopener');
 els.nameInput.addEventListener('keydown',e=>{ if(e.key==='Enter') startGame(); });
