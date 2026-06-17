@@ -107,6 +107,7 @@
         <div class="result-line" id="resGoals"></div>
         <div class="result-line" id="resGrade" style="font-style:italic"></div>
         <div>
+          <button class="big green" id="standBtn">📊 WC Standings</button>
           <button class="big alt" id="shareBtn">Share</button>
           <button class="big" id="againBtn">Play Again</button>
         </div>
@@ -127,7 +128,7 @@ const els = {
   quizOv:$('quizOv'), qcat:$('qcat'), qtext:$('qtext'), qopts:$('qopts'), qfeedback:$('qfeedback'), qtimerfill:$('qtimerfill'), nextBtn:$('nextBtn'),
   resultOv:$('resultOv'), resMarks:$('resMarks'), finalScore:$('finalScore'),
   resCorrect:$('resCorrect'), resGoals:$('resGoals'), resGrade:$('resGrade'),
-  shareBtn:$('shareBtn'), againBtn:$('againBtn'), shareToast:$('shareToast'),
+  shareBtn:$('shareBtn'), standBtn:$('standBtn'), againBtn:$('againBtn'), shareToast:$('shareToast'),
 };
 const celebCtx = $('celebCanvas').getContext('2d');
 
@@ -300,28 +301,22 @@ const BANK = [
   {c:'General',d:'H',q:'Which country lost three World Cup finals (1974, 1978, 2010)?',o:['Hungary','Netherlands','Czechoslovakia','Sweden'],a:1,f:'The Netherlands are famous runners-up — three finals, no title.'},
   {c:'General',d:'M',q:'Kaká, the 2007 Ballon d’Or winner, played for?',o:['Portugal','Brazil','Argentina','Italy'],a:1,f:'Kaká won the 2002 World Cup with Brazil.'},
   {c:'General',d:'H',q:'In which stadium was the 2022 World Cup final played?',o:['Lusail Stadium','Khalifa Stadium','Wembley','Maracanã'],a:0,f:'The 2022 final was played at Lusail Stadium near Doha.'},
-  // --- Super easy (general soccer + very easy WC) ---
-  {c:'Soccer Basics',d:'SE',q:'What do you call the player who guards the goal?',o:['Striker','Goalkeeper','Referee','Captain'],a:1,f:'The goalkeeper is the only player allowed to use their hands (inside the box).'},
-  {c:'Soccer Basics',d:'SE',q:'What shape is a soccer ball?',o:['Round','Square','Oval','Triangular'],a:0,f:'A soccer ball is a sphere — round so it rolls in any direction.'},
-  {c:'Soccer Basics',d:'SE',q:'What do you call scoring three goals in one match?',o:['A brace','A hat-trick','A double','A combo'],a:1,f:'Three goals by one player in a game is a "hat-trick".'},
-  {c:'Soccer Basics',d:'SE',q:'A match that ends with equal goals is called a…',o:['Win','Draw','Loss','Foul'],a:1,f:'Equal goals means the game is a draw (a tie).'},
-  {c:'Soccer Basics',d:'SE',q:'What do you call kicking the ball to a teammate?',o:['A pass','A tackle','A save','A throw'],a:0,f:'Passing moves the ball between teammates.'},
-  {c:'Soccer Basics',d:'SE',q:'Which official enforces the rules during a match?',o:['The coach','The referee','The captain','The manager'],a:1,f:'The referee enforces the laws of the game on the pitch.'},
-  {c:'Soccer Basics',d:'SE',q:'How many halves are in a normal football match?',o:['1','2','3','4'],a:1,f:'A match has two halves of 45 minutes each.'},
-  {c:'Soccer Basics',d:'SE',q:'What is a goal scored into your own net called?',o:['A bonus goal','An own goal','A free goal','A penalty'],a:1,f:'Accidentally scoring on your own goal is an "own goal".'},
-  {c:'Soccer Basics',d:'SE',q:'How many goals is a "brace"?',o:['One','Two','Three','Four'],a:1,f:'A brace means two goals by the same player.'},
-  {c:'Soccer Basics',d:'SE',q:'What do you call the long break in the middle of a match?',o:['Half-time','Time-out','Overtime','Kick-off'],a:0,f:'Teams rest and regroup at half-time.'},
-  {c:'Soccer Basics',d:'SE',q:'A penalty kick is taken one-on-one against whom?',o:['A defender','The goalkeeper','The referee','The captain'],a:1,f:'In a penalty, it is the kicker versus the goalkeeper.'},
-  {c:'Soccer Basics',d:'SE',q:'If you score more goals than your opponent, you…',o:['Win','Draw','Lose','Foul'],a:0,f:'More goals than the other team means you win.'},
-  {c:'Soccer Basics',d:'SE',q:'How many teams play against each other in one match?',o:['1','2','3','4'],a:1,f:'Two teams face each other in a match.'},
-  {c:'Soccer Basics',d:'SE',q:'Restarting play by throwing the ball in from the sideline is a…',o:['Corner','Throw-in','Goal kick','Penalty'],a:1,f:'When the ball goes out at the side, play restarts with a throw-in.'},
-  {c:'Soccer Basics',d:'SE',q:'What do outfield players wear on their feet to play?',o:['Football boots','Sandals','Roller skates','Flip-flops'],a:0,f:'Players wear studded football boots (cleats) for grip on grass.'},
-  {c:'Soccer Basics',d:'SE',q:'What colour is a typical football pitch?',o:['Blue','Green','Red','Orange'],a:1,f:'Pitches are green grass (real or artificial).'},
-  {c:'WC Basics',d:'SE',q:'The World Cup is a tournament for which sport?',o:['Basketball','Soccer (football)','Tennis','Cricket'],a:1,f:'The FIFA World Cup is the biggest soccer/football tournament.'},
-  {c:'WC Basics',d:'SE',q:'The next World Cup after 2022 takes place in which year?',o:['2024','2025','2026','2028'],a:2,f:'The 2026 World Cup is co-hosted by the USA, Canada and Mexico.'},
-  {c:'WC Basics',d:'SE',q:'Which trophy do World Cup winners lift?',o:["The Ballon d'Or",'The FIFA World Cup Trophy','The Golden Boot','The Champions League cup'],a:1,f:'Winners lift the golden FIFA World Cup Trophy.'},
-  {c:'WC Basics',d:'SE',q:'Which continent is Brazil, the most successful WC team, from?',o:['Europe','Africa','South America','Asia'],a:2,f:'Brazil is in South America and has won the World Cup five times.'},
-  {c:'Soccer Basics',d:'SE',q:'Which body part are outfield players NOT allowed to use?',o:['Feet','Head','Hands/arms','Chest'],a:2,f:'Only the goalkeeper may handle the ball (inside their area); outfielders cannot use hands or arms.'},
+  // --- Easier general soccer + World Cup basics ---
+  {c:'Soccer Basics',d:'E',q:'What do you call the player who guards the goal?',o:['Striker','Goalkeeper','Referee','Captain'],a:1,f:'The goalkeeper is the only player allowed to use their hands (inside the box).'},
+  {c:'Soccer Basics',d:'E',q:'What do you call scoring three goals in one match?',o:['A brace','A hat-trick','A double','A combo'],a:1,f:'Three goals by one player in a game is a "hat-trick".'},
+  {c:'Soccer Basics',d:'E',q:'A match that ends with equal goals is called a…',o:['Win','Draw','Loss','Foul'],a:1,f:'Equal goals means the game is a draw (a tie).'},
+  {c:'Soccer Basics',d:'E',q:'What do you call kicking the ball to a teammate?',o:['A pass','A tackle','A save','A throw'],a:0,f:'Passing moves the ball between teammates.'},
+  {c:'Soccer Basics',d:'E',q:'Which official enforces the rules during a match?',o:['The coach','The referee','The captain','The manager'],a:1,f:'The referee enforces the laws of the game on the pitch.'},
+  {c:'Soccer Basics',d:'E',q:'What is a goal scored into your own net called?',o:['A bonus goal','An own goal','A free goal','A penalty'],a:1,f:'Accidentally scoring on your own goal is an "own goal".'},
+  {c:'Soccer Basics',d:'E',q:'How many goals is a "brace"?',o:['One','Two','Three','Four'],a:1,f:'A brace means two goals by the same player.'},
+  {c:'Soccer Basics',d:'E',q:'What do you call the long break in the middle of a match?',o:['Half-time','Time-out','Overtime','Kick-off'],a:0,f:'Teams rest and regroup at half-time.'},
+  {c:'Soccer Basics',d:'E',q:'A penalty kick is taken one-on-one against whom?',o:['A defender','The goalkeeper','The referee','The captain'],a:1,f:'In a penalty, it is the kicker versus the goalkeeper.'},
+  {c:'Soccer Basics',d:'E',q:'Restarting play by throwing the ball in from the sideline is a…',o:['Corner','Throw-in','Goal kick','Penalty'],a:1,f:'When the ball goes out at the side, play restarts with a throw-in.'},
+  {c:'Soccer Basics',d:'E',q:'What do outfield players wear on their feet to play?',o:['Football boots','Sandals','Roller skates','Flip-flops'],a:0,f:'Players wear studded football boots (cleats) for grip on grass.'},
+  {c:'Soccer Basics',d:'E',q:'Which body part are outfield players NOT allowed to use?',o:['Feet','Head','Hands/arms','Chest'],a:2,f:'Only the goalkeeper may handle the ball (inside their area); outfielders cannot use hands or arms.'},
+  {c:'WC Basics',d:'E',q:'The next World Cup after 2022 takes place in which year?',o:['2024','2025','2026','2028'],a:2,f:'The 2026 World Cup is co-hosted by the USA, Canada and Mexico.'},
+  {c:'WC Basics',d:'E',q:'Which trophy do World Cup winners lift?',o:["The Ballon d'Or",'The FIFA World Cup Trophy','The Golden Boot','The Champions League cup'],a:1,f:'Winners lift the golden FIFA World Cup Trophy.'},
+  {c:'WC Basics',d:'E',q:'Which continent is Brazil, the most successful WC team, from?',o:['Europe','Africa','South America','Asia'],a:2,f:'Brazil is in South America and has won the World Cup five times.'},
 ];
 
 /* ===================== Daily selection by tier ===================== */
@@ -337,13 +332,12 @@ const dateStr = today.toLocaleDateString(undefined,{month:'short',day:'numeric',
 
 function dailyQuestions(){
   const rng = mulberry32(dayKey||1);
-  const pools = { SE:shuffleRng(BANK.filter(q=>q.d==='SE'),rng),
-                  E:shuffleRng(BANK.filter(q=>q.d==='E'),rng),
+  const pools = { E:shuffleRng(BANK.filter(q=>q.d==='E'),rng),
                   M:shuffleRng(BANK.filter(q=>q.d==='M'),rng),
                   H:shuffleRng(BANK.filter(q=>q.d==='H'),rng) };
-  // every day: two super-easy, one easy, one medium, one hard
-  const tmpl = ['SE','SE','E','M','H'];
-  const idx = {SE:0,E:0,M:0,H:0};
+  // every day: easy, easy, medium, medium, hard
+  const tmpl = ['E','E','M','M','H'];
+  const idx = {E:0,M:0,H:0};
   return tmpl.map(t => pools[t][idx[t]++]);
 }
 
@@ -351,10 +345,10 @@ function dailyQuestions(){
 const GOAL = { x: W/2-150, y:70, w:300, h:90 };
 const BALL_HOME = { x: W/2, y: H-96 };
 const BEST_KEY='purinWCBest', NAME_KEY='purinWCName', NUM_KEY='purinWCNum';
-const PTS={SE:100,E:150,M:250,H:350}; // harder questions are worth more
+const PTS={E:100,M:150,H:250}; // harder questions are worth more
 
 let state='idle', kick='ready';
-let quiz=[], qIndex=0, correctCount=0, totalGoals=0, quizPoints=0, results=[];
+let quiz=[], qIndex=0, correctCount=0, totalGoals=0, quizPoints=0, streak=0, results=[];
 let answered=false, quizTime=10, penaltyTime=0;
 let ball, keeper, charging=false, power=0, aim={x:W/2,y:GOAL.y};
 let flash=null, lastTs=0, cheerIdx=0, kickAnimT=0, flightT=0;
@@ -364,8 +358,8 @@ const displayName = () => playerNum ? `${playerName} #${playerNum}` : playerName
 let best = parseInt(localStorage.getItem(BEST_KEY)||'0',10) || 0;
 
 // difficulty ramps up sharply for the 4th and 5th questions
-// keeper difficulty per question slot: Q1/Q2 super-easy → Q5 hard
-const DIFF_BY_Q=[0.03, 0.10, 0.28, 0.55, 0.85];
+// keeper difficulty per question slot: easy, easy, medium, medium, hard
+const DIFF_BY_Q=[0.08, 0.18, 0.40, 0.55, 0.85];
 function effDiff(){ return Math.min(0.96, (DIFF_BY_Q[qIndex] ?? 0.4) + totalGoals*0.02); }
 function resetBall(){ ball={x:BALL_HOME.x,y:BALL_HOME.y,vx:0,vy:0,r:14,scale:1,spin:0}; }
 function newKeeper(){
@@ -388,13 +382,13 @@ function startGame(){
   playerNum = (els.numInput.value||'').replace(/[^0-9]/g,'').slice(0,2);
   localStorage.setItem(NAME_KEY, playerName); localStorage.setItem(NUM_KEY, playerNum);
   quiz = dailyQuestions();
-  qIndex=0; correctCount=0; totalGoals=0; quizPoints=0; results=[];
+  qIndex=0; correctCount=0; totalGoals=0; quizPoints=0; streak=0; results=[];
   resetBall(); showQuiz();
 }
 function showQuiz(){
   state='quiz'; answered=false;
   const item=quiz[qIndex];
-  const TIER={SE:'Super Easy',E:'Easy',M:'Medium',H:'Hard'};
+  const TIER={E:'Easy',M:'Medium',H:'Hard'};
   els.qcat.textContent=`Q${qIndex+1} of 5 · ${item.c} · ${TIER[item.d]} (${PTS[item.d]} pts)`;
   els.qtext.textContent=item.q;
   els.qfeedback.innerHTML='&nbsp;'; els.qopts.innerHTML=''; els.nextBtn.style.display='none';
@@ -413,19 +407,24 @@ function showNext(label, cls, fn){
 function answer(btn,isCorrect,order,item){
   if(answered) return; answered=true; revealCorrect(order);
   if(isCorrect){
-    correctCount++; quizPoints+=PTS[item.d]; results.push(true);
+    correctCount++; streak++; quizPoints+=PTS[item.d]; results.push(true);
     els.qfeedback.textContent=`✅ Correct! +${PTS[item.d]} pts. `+item.f;
     updateHud(); showNext('Take the penalty kick! ⚽','green',startPenalty);
   }else{
-    btn.classList.add('wrong'); results.push(false);
+    streak=0; btn.classList.add('wrong'); results.push(false);
     els.qfeedback.textContent='❌ Nope. '+item.f;
     showNext(qIndex>=4?'See results 🏆':'Next question →','alt',nextQuiz);
   }
 }
 function startPenalty(){
   show(null); state='penalty'; kick='ready';
-  penaltyTime=5; power=0; charging=false; resetBall(); newKeeper();
-  els.hint.textContent='Hold to charge, release to shoot — go, '+playerName+'!';
+  // streak bonus: 2-in-a-row = +2s, then +1s for each further correct (5,7,8,9,10s for a 5/5 run)
+  penaltyTime = streak>=2 ? 5+streak : 5;
+  power=0; charging=false; resetBall(); newKeeper();
+  const bonus=penaltyTime-5;
+  els.hint.textContent = bonus>0
+    ? `🔥 Streak x${streak}! ${penaltyTime}s to shoot — go, ${playerName}!`
+    : `Hold to charge, release to shoot — go, ${playerName}!`;
   updateHud();
 }
 function endPenalty(){ nextQuiz(); }
@@ -439,9 +438,9 @@ function endGame(){
   els.resCorrect.textContent=`🧠 Quiz: ${correctCount}/5 correct · ${quizPoints} pts`;
   els.resGoals.textContent=`⚽ Goals: ${totalGoals} · ${totalGoals*50} pts`;
   let grade='Keep practising';
-  if(score>=800) grade='World Cup Legend! 🐱👑';
-  else if(score>=500) grade='Star Striker! 🌟';
-  else if(score>=300) grade='Solid squad player! 💪';
+  if(score>=650) grade='World Cup Legend! 🐱👑';
+  else if(score>=450) grade='Star Striker! 🌟';
+  else if(score>=250) grade='Solid squad player! 💪';
   els.resGrade.textContent=`${displayName()}: ${grade}`;
   els.shareToast.innerHTML='&nbsp;';
   els.hint.textContent='Great game! Tap Share to copy your score, or play again.';
@@ -490,7 +489,10 @@ function onUp(e){ if(!canKick()||!charging) return; e.preventDefault(); charging
 cv.addEventListener('mousemove',onMove); cv.addEventListener('mousedown',onDown); window.addEventListener('mouseup',onUp);
 cv.addEventListener('touchmove',e=>{onMove(e); if(canKick()) e.preventDefault();},{passive:false});
 cv.addEventListener('touchstart',onDown,{passive:false}); window.addEventListener('touchend',onUp,{passive:false});
+// Opens the live World Cup group standings (always current/accurate). Change this URL to FIFA/ESPN if preferred.
+const STANDINGS_URL='https://www.google.com/search?q=fifa+world+cup+2026+group+standings';
 els.startBtn.onclick=startGame; els.againBtn.onclick=startGame; els.shareBtn.onclick=doShare;
+els.standBtn.onclick=()=>window.open(STANDINGS_URL,'_blank','noopener');
 els.nameInput.addEventListener('keydown',e=>{ if(e.key==='Enter') startGame(); });
 
 function shoot(){
