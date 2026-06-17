@@ -417,11 +417,11 @@ function answer(btn,isCorrect,order,item){
     correctCount++; streak++; quizPoints+=PTS[item.d]; results.push(true);
     const pt = streak>=2 ? 5+streak : 5;                 // penalty seconds incl. streak bonus
     const streakMsg = streak>=2 ? ` 🔥 ${streak} in a row — +${pt-5}s shooting time!` : '';
-    els.qfeedback.textContent=`✅ Correct! +${PTS[item.d]} pts.${streakMsg} `+item.f;
+    els.qfeedback.innerHTML=`<strong>✅ Correct! +${PTS[item.d]} pts.${streakMsg}</strong><br>${item.f}`;
     updateHud(); showNext('Take the penalty kick! ⚽','green',startPenalty);
   }else{
     streak=0; btn.classList.add('wrong'); results.push(false);
-    els.qfeedback.textContent='❌ Nope. '+item.f;
+    els.qfeedback.innerHTML='<strong>❌ Nope.</strong><br>'+item.f;
     showNext(qIndex>=4?'See results 🏆':'Next question →','alt',nextQuiz);
   }
 }
